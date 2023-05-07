@@ -69,34 +69,18 @@ impl Game {
 		let mut cards = Card::all_cards().to_vec();
 		shuffle(&mut cards);
 
-		print!("{:#?}", cards);
-
-		let mut pile = Pile {
-			hidden: Vec::new(),
-			visible: Vec::new(),
-		};
-
-		pile.hidden.push(Card {
-			suit: Suit::Diamonds,
-			rank: Rank::Ace,
-		});
-
-		pile.hidden.push(Card {
-			suit: Suit::Clubs,
-			rank: Rank::Six,
-		});
-
-		pile.hidden.push(Card {
-			suit: Suit::Hearts,
-			rank: Rank::Ten,
-		});
-
-		pile.visible.push(Card {
-			suit: Suit::Spades,
-			rank: Rank::King,
-		});
-
-		game.piles.push(pile);
+		for pile_size in 1..=7 {
+			let mut pile = Pile::new();
+			for i in 0..pile_size {
+				let card = cards.pop().unwrap();
+				if i == pile_size - 1 {
+					pile.visible.push(card);
+				} else {
+					pile.hidden.push(card);
+				}
+			}
+			game.piles.push(pile);
+		}
 
 		return game;
 	}
