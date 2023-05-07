@@ -206,6 +206,11 @@ impl Game {
 			MouseTarget::Stock => {
 				let card = self.stock.front()?;
 				let mut moves: Vec<Move> = Vec::new();
+
+				if card.rank == Rank::Ace {
+					moves.push(Move::ToFoundation(card.suit))
+				}
+
 				for (i, pile) in self.piles[..].into_iter().enumerate() {
 					if pile.is_empty() && card.rank == Rank::King {
 						// if the pile is empty and the stock card is a king, it's a valid move
