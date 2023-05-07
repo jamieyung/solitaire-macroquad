@@ -28,8 +28,11 @@ async fn main() {
 		if let Some(target) = game.mouse_hit(x, y) {
 			draw_mouse_hit(target);
 			if is_mouse_button_pressed(MouseButton::Left) {
-				if let Some(moves) = game.calc_moves(target) {
-					println!("{:#?}", moves); // TODO
+				println!("target: {:?}", target);
+				if let MouseTarget::StockDeck = target {
+					game.cycle_stock();
+				} else if let Some(moves) = game.calc_moves(target) {
+					println!("moves: {:?}", moves);
 					if moves.len() == 1 {
 						game.exec_move(target, moves.first().unwrap().clone());
 					}
@@ -55,12 +58,15 @@ const CARD_BACK_COLOUR: Color = BLUE; // colour on the back of the cards
 const PILES_Y: f32 = CARD_H * 2.; // the topmost y-coord of the piles area
 const PILE_CARD_V_OFFSET: f32 = CARD_FONT_SIZE*0.6; // vertical distance between cards in a pile
 const PILE_H_OFFSET: f32 = CARD_W * 1.5; // horizontal distance between the left edge of adjacent piles
-const MOUSE_TARGET_COLOUR: Color = Color::new(1.00, 0.00, 1.00, 0.3);
+const MOUSE_TARGET_COLOUR: Color = Color::new(1.00, 0.00, 1.00, 0.2);
 
 fn draw_mouse_hit(target: MouseTarget) {
 	match target {
-		MouseTarget::Stock => {
+		MouseTarget::StockTop => {
 			draw_rectangle(INSET + PILE_H_OFFSET, INSET, CARD_W, CARD_H, MOUSE_TARGET_COLOUR);
+		}
+		MouseTarget::StockDeck => {
+			draw_rectangle(INSET, INSET, CARD_W, CARD_H, MOUSE_TARGET_COLOUR);
 		}
 		MouseTarget::Foundation(suit) => {
 			draw_rectangle(FOUNDATIONS_X+suit.foundation_offset()*PILE_H_OFFSET, INSET, CARD_W, CARD_H, MOUSE_TARGET_COLOUR);
@@ -177,7 +183,10 @@ impl Game {
 	pub fn mouse_hit(&self, mx:f32, my:f32) -> Option<MouseTarget> {
 		// check stock
 		if !self.stock.is_empty() && Card::mouse_hit(INSET + PILE_H_OFFSET, INSET, mx, my) {
-			return Some(MouseTarget::Stock)
+			return Some(MouseTarget::StockTop)
+		}
+		if !self.stock.len() > 1 && Card::mouse_hit(INSET, INSET, mx, my) {
+			return Some(MouseTarget::StockDeck)
 		}
 
 		// check foundations
@@ -201,6 +210,7 @@ impl Game {
 						pile_index,
 						n_cards: (pile.visible.len() - card_index) as u8,
 						target_card: *card,
+						target_card_index: card_index,
 						top: y,
 					})
 				}
@@ -219,7 +229,7 @@ impl Game {
 		let mut moves: Vec<Move> = Vec::new();
 
 		match target {
-			MouseTarget::Stock => {
+			MouseTarget::StockTop => {
 				let card = self.stock.front()?;
 
 				if card.rank == Rank::Ace {
@@ -252,6 +262,7 @@ impl Game {
 					}
 				}
 			}
+			MouseTarget::StockDeck => {}
 			MouseTarget::Foundation(suit) => {
 				let card = self.foundation_top_card(suit)?;
 
@@ -311,22 +322,21 @@ impl Game {
 
 	pub fn exec_move(&mut self, target:MouseTarget, mv:Move) -> bool {
 		match target {
-			MouseTarget::Stock => {
+			MouseTarget::StockTop => {
 				if let Some(card) = self.stock.front().cloned() {
+					self.stock.pop_front();
 					match mv {
 						Move::ToPile(pile_index) => {
-							self.stock.pop_front();
 							self.piles[pile_index].visible.push(card);
-							return true
 						}
 						Move::ToFoundation(suit) => {
-							self.stock.pop_front();
 							self.foundation_fill_levels.insert(suit, card.rank);
-							return true
 						}
 					}
+					return true
 				}
 			}
+			MouseTarget::StockDeck => {}
 			MouseTarget::Foundation(suit) => {
 				match mv {
 					Move::ToPile(pile_index) => {
@@ -337,15 +347,25 @@ impl Game {
 					}
 				}
 			}
-			MouseTarget::Pile{pile_index, target_card:card, n_cards, ..} => {
-				match mv {
-					Move::ToPile(pile_index) => {
-						// TODO
-					}
-					Move::ToFoundation(suit) => {
-						// TODO
+			MouseTarget::Pile{pile_index, target_card:top_card, target_card_index, ..} => {
+				let pile = &mut self.piles[pile_index];
+				let removed:Vec<Card> = pile.visible.drain(target_card_index..).collect();
+				if pile.visible.is_empty() {
+					if let Some(next) = pile.hidden.pop() {
+						pile.visible.push(next);
 					}
 				}
+				match mv {
+					Move::ToPile(dest_pile_index) => {
+						for card in removed {
+							self.piles[dest_pile_index].visible.push(card);
+						}
+					}
+					Move::ToFoundation(suit) => {
+						self.foundation_fill_levels.insert(suit, top_card.rank);
+					}
+				}
+				return true
 			}
 		}
 		return false
@@ -359,14 +379,16 @@ impl Game {
 	}
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 enum MouseTarget {
-	Stock,
+	StockTop, // the visible card
+	StockDeck, // the rest of the stock
 	Foundation(Suit),
 	Pile{
 		pile_index:usize, // 0 is the leftmost pile
 		n_cards:u8, // 1 = only the top card, 2 = two top cards, etc
 		target_card:Card, // the card that was targeted
+		target_card_index:usize, // the index into visible of the targeted card
 		top:f32, // the y-coord of the top of the targeted card
 	},
 }
@@ -377,6 +399,7 @@ enum Move {
 	ToFoundation(Suit),
 }
 
+#[derive(Clone, Debug)]
 struct Pile {
 	hidden: Vec<Card>,
 	visible: Vec<Card>,
