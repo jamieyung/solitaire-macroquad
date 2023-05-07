@@ -28,6 +28,8 @@ async fn main() {
 			game = Game::new();
 		} else if is_key_pressed(KeyCode::D) {
 			game.debug();
+		} else if is_key_pressed(KeyCode::A) {
+			game.auto_move();
 		}
 
 		draw_game(&game, &textures);
@@ -37,7 +39,7 @@ async fn main() {
 			draw_mouse_hit(target, MOUSE_TARGET_COLOUR);
 			if is_mouse_button_pressed(MouseButton::Left) {
 				println!("target: {:?}", target);
-				if let Some(_) = game.move_in_progress {
+				if Option::is_some(&game.move_in_progress) {
 					game.exec_move_in_progress(target);
 				} else {
 					game.move_in_progress = None;
@@ -56,6 +58,8 @@ async fn main() {
 				}
 			}
 		}
+
+		// TODO detect win condition
 
 		next_frame().await;
 	}
@@ -278,7 +282,7 @@ impl Game {
 		Some(Card::new(suit, *rank))
 	}
 
-	pub fn calc_moves(&mut self, target:MouseTarget) -> Option<Vec<Move>> {
+	pub fn calc_moves(&self, target:MouseTarget) -> Option<Vec<Move>> {
 		let mut moves: Vec<Move> = Vec::new();
 
 		match target {
@@ -289,23 +293,6 @@ impl Game {
 					moves.push(Move::ToFoundation(card.suit))
 				}
 
-				// consider moves to the piles
-				for (i, pile) in self.piles[..].into_iter().enumerate() {
-					if pile.is_empty() && card.rank == Rank::King {
-						// if the pile is empty and the card is a king, it's a valid move
-						moves.push(Move::ToPile(i));
-					}
-
-					// if the card can go onto the top visible card, it's a valid move
-					else {
-						if let Some(top) = pile.top_card() {
-							if card.can_pile_onto(top) {
-								moves.push(Move::ToPile(i));
-							}
-						}
-					}
-				}
-
 				// consider moves to the foundation
 				for suit in Suit::all() {
 					if let Some(top) = self.foundation_top_card(*suit) {
@@ -313,6 +300,21 @@ impl Game {
 							moves.push(Move::ToFoundation(*suit));
 							break;
 						}
+					}
+				}
+
+				// consider moves to the piles
+				for (i, pile) in self.piles[..].into_iter().enumerate() {
+					// if the card can go onto the top visible card, it's a valid move
+					if let Some(top) = pile.top_card() {
+						if card.can_pile_onto(top) {
+							moves.push(Move::ToPile(i));
+						}
+					}
+
+					else if pile.is_empty() && card.rank == Rank::King {
+						// if the pile is empty and the card is a king, it's a valid move
+						moves.push(Move::ToPile(i));
 					}
 				}
 			}
@@ -336,25 +338,6 @@ impl Game {
 					moves.push(Move::ToFoundation(card.suit))
 				}
 
-				// consider moves to other piles
-				for (i, pile) in self.piles[..].into_iter().enumerate() {
-					if i == pile_index { continue }
-
-					if pile.is_empty() && card.rank == Rank::King {
-						// if the pile is empty and the card is a king, it's a valid move
-						moves.push(Move::ToPile(i));
-					}
-
-					// if the card can go onto the top visible card, it's a valid move
-					else {
-						if let Some(top) = pile.top_card() {
-							if card.can_pile_onto(top) {
-								moves.push(Move::ToPile(i));
-							}
-						}
-					}
-				}
-
 				// consider moves to the foundation (iff it's a single card being targeted)
 				if n_cards == 1 {
 					for suit in Suit::all() {
@@ -364,6 +347,23 @@ impl Game {
 								break;
 							}
 						}
+					}
+				}
+
+				// consider moves to other piles
+				for (i, pile) in self.piles[..].into_iter().enumerate() {
+					if i == pile_index { continue }
+
+					// if the card can go onto the top visible card, it's a valid move
+					if let Some(top) = pile.top_card() {
+						if card.can_pile_onto(top) {
+							moves.push(Move::ToPile(i));
+						}
+					}
+
+					else if pile.is_empty() && card.rank == Rank::King {
+						// if the pile is empty and the card is a king, it's a valid move
+						moves.push(Move::ToPile(i));
 					}
 				}
 			}
@@ -387,6 +387,12 @@ impl Game {
 						}
 						Move::ToFoundation(suit) => {
 							self.foundation_fill_levels.insert(suit, card.rank);
+						}
+					}
+					// if there is a previous card, put it back at the front
+					if !self.stock.is_empty() {
+						if let Some(prev) = self.stock.pop_back() {
+							self.stock.push_front(prev)
 						}
 					}
 					return true
@@ -471,6 +477,32 @@ impl Game {
 		}
 		// if we got to here, it means the move failed. Clear it
 		self.move_in_progress = None;
+	}
+
+	pub fn auto_move(&mut self) {
+		if let Some(moves) = self.calc_moves(MouseTarget::StockTop) {
+			let mv = moves.as_slice().first().unwrap().to_owned();
+			self.exec_move(MouseTarget::StockTop, mv);
+			return;
+		}
+
+		for (pile_index, pile) in self.piles[..].into_iter().enumerate() {
+			// check visible cards in reverse order
+			for (card_index, card) in pile.visible[..].into_iter().enumerate().rev() {
+				let target = MouseTarget::PileCard{
+					pile_index,
+					n_cards: (pile.visible.len() - card_index) as u8,
+					target_card: *card,
+					target_card_index: card_index,
+					top: 0., // doesn't matter for this purpose
+				};
+				if let Some(moves) = self.calc_moves(target) {
+					let mv = moves.as_slice().first().unwrap().to_owned();
+					self.exec_move(target, mv);
+					return;
+				}
+			}
+		}
 	}
 
 	pub fn debug(&self) {
