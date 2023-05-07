@@ -3,6 +3,12 @@ use std::collections::{HashMap, VecDeque};
 
 #[macroquad::main("Solitaire")]
 async fn main() {
+	let mut textures = HashMap::new();
+    textures.insert(Suit::Diamonds, load_texture("textures/diamonds.png").await.unwrap());
+    textures.insert(Suit::Clubs, load_texture("textures/clubs.png").await.unwrap());
+    textures.insert(Suit::Hearts, load_texture("textures/hearts.png").await.unwrap());
+    textures.insert(Suit::Spades, load_texture("textures/spades.png").await.unwrap());
+
 	// seed the RNG
 	let duration_since_epoch = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap();
 	rand::srand(duration_since_epoch.as_secs());
@@ -22,11 +28,11 @@ async fn main() {
 			game.debug();
 		}
 
-		draw_game(&game);
+		draw_game(&game, &textures);
 
 		let (mx, my) = mouse_position();
 		if let Some(target) = game.mouse_hit(mx, my) {
-			draw_mouse_hit(target);
+			draw_mouse_hit(target, MOUSE_TARGET_COLOUR);
 			if is_mouse_button_pressed(MouseButton::Left) {
 				println!("target: {:?}", target);
 				if let Some(_) = game.move_in_progress {
@@ -60,89 +66,113 @@ const CARD_W: f32 = 60.; // card width
 const CARD_H: f32 = CARD_W*1.4; // card height
 const CARD_BORDER_WIDTH: f32 = 2.; // width of the black border around the cards
 const CARD_FONT_SIZE: f32 = CARD_W*0.6; // card font size
+const CARD_SUIT_TEX_SIZE_FOUNDATION: f32 = CARD_W*0.5;
+const CARD_SUIT_TEX_SIZE_PILES: f32 = CARD_W*0.3;
 const CARD_BACK_WHITE_BORDER_MARGIN: f32 = 3.; // size of the white strip around the card back colour
 const CARD_BACK_COLOUR: Color = BLUE; // colour on the back of the cards
 const PILES_Y: f32 = CARD_H * 2.; // the topmost y-coord of the piles area
 const PILE_CARD_V_OFFSET: f32 = CARD_FONT_SIZE*0.6; // vertical distance between cards in a pile
 const PILE_H_OFFSET: f32 = CARD_W * 1.5; // horizontal distance between the left edge of adjacent piles
 const MOUSE_TARGET_COLOUR: Color = Color::new(1.00, 0.00, 1.00, 0.2);
+const MOVE_IN_PROGRESS_COLOUR: Color = Color::new(0.00, 1.00, 1.00, 0.3);
 
-fn draw_mouse_hit(target: MouseTarget) {
+fn draw_mouse_hit(target: MouseTarget, col:Color) {
 	match target {
 		MouseTarget::StockTop => {
-			draw_rectangle(INSET + PILE_H_OFFSET, INSET, CARD_W, CARD_H, MOUSE_TARGET_COLOUR);
+			draw_rectangle(INSET + PILE_H_OFFSET, INSET, CARD_W, CARD_H, col);
 		}
 		MouseTarget::StockDeck => {
-			draw_rectangle(INSET, INSET, CARD_W, CARD_H, MOUSE_TARGET_COLOUR);
+			draw_rectangle(INSET, INSET, CARD_W, CARD_H, col);
 		}
 		MouseTarget::Foundation(suit) => {
-			draw_rectangle(FOUNDATIONS_X+suit.foundation_offset()*PILE_H_OFFSET, INSET, CARD_W, CARD_H, MOUSE_TARGET_COLOUR);
+			draw_rectangle(FOUNDATIONS_X+suit.foundation_offset()*PILE_H_OFFSET, INSET, CARD_W, CARD_H, col);
 		}
-		MouseTarget::Pile{pile_index, n_cards, top, ..} => {
+		MouseTarget::EmptyPile(pile_index) => {
+			let x = Pile::pile_x(pile_index);
+			let y = PILES_Y;
+			let w = CARD_W;
+			let h = CARD_H;
+			draw_rectangle(x, y, w, h, col);
+		}
+		MouseTarget::PileCard{pile_index, n_cards, top, ..} => {
 			let x = Pile::pile_x(pile_index);
 			let y = top;
 			let w = CARD_W;
 			let h = CARD_H + PILE_CARD_V_OFFSET*((n_cards-1) as f32);
-			draw_rectangle(x, y, w, h, MOUSE_TARGET_COLOUR);
+			draw_rectangle(x, y, w, h, col);
 		}
 	}
 }
 
-fn draw_game(game: &Game) {
+fn draw_game(game: &Game, textures:&HashMap<Suit, Texture2D>) {
 	// draw stock
 	if game.stock.len() > 1 {
-		draw_card(&Card::new(Suit::Diamonds, Rank::Ace), INSET, INSET, false);
+		draw_card(&Card::new(Suit::Diamonds, Rank::Ace), INSET, INSET, false, textures);
 	}
 	if !game.stock.is_empty() {
-		draw_card(&game.stock[0], INSET + PILE_H_OFFSET, INSET, true);
+		draw_card(&game.stock[0], INSET + PILE_H_OFFSET, INSET, true, textures);
 	}
 
 	// draw piles
 	for (i, pile) in game.piles[..].into_iter().enumerate() {
 		let x = Pile::pile_x(i);
-		draw_pile(pile, x, PILES_Y);
+		draw_pile(pile, x, PILES_Y, textures);
 	}
 
 	// draw foundations
 	for suit in Suit::all() {
-		draw_foundation(suit.clone(), game.foundation_fill_levels.get(&suit), FOUNDATIONS_X+suit.foundation_offset()*PILE_H_OFFSET, INSET);
+		draw_foundation(suit.clone(), game.foundation_fill_levels.get(&suit), FOUNDATIONS_X+suit.foundation_offset()*PILE_H_OFFSET, INSET, textures);
 	}
 
 	// draw move_in_progress
 	if let Some(mip) = &game.move_in_progress {
-		draw_mouse_hit(mip.target);
+		draw_mouse_hit(mip.target, MOVE_IN_PROGRESS_COLOUR);
 	}
 }
 
-fn draw_foundation(suit: Suit, rank: Option<&Rank>, x:f32, y:f32) {
+fn draw_foundation(suit: Suit, rank: Option<&Rank>, x:f32, y:f32, textures:&HashMap<Suit, Texture2D>) {
 	match rank {
 		Some(r) => {
-			draw_card(&Card::new(suit, r.to_owned()), x, y, true);
+			draw_card(&Card::new(suit, r.to_owned()), x, y, true, textures);
 		}
 		None => {
 			draw_rectangle_lines(x, y, CARD_W, CARD_H, CARD_BORDER_WIDTH, BLACK);
+			let tex = *textures.get(&suit).unwrap();
+			let col = Color::new(0., 0., 0., 0.7);
+			draw_texture_ex(tex, x+CARD_W*0.5-CARD_SUIT_TEX_SIZE_FOUNDATION*0.5, y+CARD_H*0.5-CARD_SUIT_TEX_SIZE_FOUNDATION*0.63, col, DrawTextureParams{
+				dest_size: Some(vec2(CARD_SUIT_TEX_SIZE_FOUNDATION, CARD_SUIT_TEX_SIZE_FOUNDATION)),
+				..Default::default()
+			});
 		}
 	}
 }
 
-fn draw_pile(pile: &Pile, x:f32, y:f32) {
+fn draw_pile(pile: &Pile, x:f32, y:f32, textures:&HashMap<Suit, Texture2D>) {
+	if pile.is_empty() {
+		draw_rectangle_lines(x, y, CARD_W, CARD_H, CARD_BORDER_WIDTH, BLACK);
+		return
+	}
+
 	for (i, card) in pile.hidden[..].into_iter().enumerate() {
-		draw_card(card, x, y + i as f32 * PILE_CARD_V_OFFSET, false);
+		draw_card(card, x, y + i as f32 * PILE_CARD_V_OFFSET, false, textures);
 	}
 	let n_hidden = pile.hidden.len() as f32;
 	for (i, card) in pile.visible[..].into_iter().enumerate() {
-		draw_card(card, x, y + (i as f32 + n_hidden) * PILE_CARD_V_OFFSET, true);
+		draw_card(card, x, y + (i as f32 + n_hidden) * PILE_CARD_V_OFFSET, true, textures);
 	}
 }
 
-fn draw_card(c: &Card, x:f32, y:f32, visible:bool) {
+fn draw_card(c: &Card, x:f32, y:f32, visible:bool, textures:&HashMap<Suit, Texture2D>) {
 	draw_rectangle(x, y, CARD_W, CARD_H, WHITE);
 	draw_rectangle_lines(x, y, CARD_W, CARD_H, CARD_BORDER_WIDTH, BLACK);
 
 	if visible {
 		let col = c.col();
 		draw_text(c.rank.letter(), x, y + CARD_FONT_SIZE*0.55, CARD_FONT_SIZE, col);
-		draw_text(c.suit.letter(), x+CARD_W*0.7, y + CARD_FONT_SIZE*0.55, CARD_FONT_SIZE, col);
+		draw_texture_ex(*textures.get(&c.suit).unwrap(), x+CARD_W*0.63, y+CARD_H*0.02, col, DrawTextureParams{
+			dest_size: Some(vec2(CARD_SUIT_TEX_SIZE_PILES, CARD_SUIT_TEX_SIZE_PILES)),
+			..Default::default()
+		});
 	} else {
 		draw_rectangle(
 			x+CARD_BACK_WHITE_BORDER_MARGIN, y+CARD_BACK_WHITE_BORDER_MARGIN,
@@ -187,6 +217,7 @@ impl Game {
 
 	// does nothing if the stock has fewer than 2 cards
 	pub fn cycle_stock(&mut self) {
+		self.move_in_progress = None;
 		if self.stock.len() < 2 {
 			return
 		}
@@ -205,7 +236,7 @@ impl Game {
 
 		// check foundations
 		for suit in Suit::all() {
-			if self.foundation_fill_levels.contains_key(&suit) && Card::mouse_hit(FOUNDATIONS_X+suit.foundation_offset()*PILE_H_OFFSET, INSET, mx, my) {
+			if Card::mouse_hit(FOUNDATIONS_X+suit.foundation_offset()*PILE_H_OFFSET, INSET, mx, my) {
 				return Some(MouseTarget::Foundation(suit.clone()))
 			}
 		}
@@ -220,7 +251,7 @@ impl Game {
 			for (card_index, card) in pile.visible[..].into_iter().enumerate().rev() {
 				let y = PILES_Y + (card_index as f32 + n_hidden) * PILE_CARD_V_OFFSET;
 				if Card::mouse_hit(x, y, mx, my) {
-					return Some(MouseTarget::Pile{
+					return Some(MouseTarget::PileCard{
 						pile_index,
 						n_cards: (pile.visible.len() - card_index) as u8,
 						target_card: *card,
@@ -228,6 +259,10 @@ impl Game {
 						top: y,
 					})
 				}
+			}
+
+			if pile.is_empty() {
+				return Some(MouseTarget::EmptyPile(pile_index))
 			}
 		}
 
@@ -271,7 +306,8 @@ impl Game {
 				for suit in Suit::all() {
 					if let Some(top) = self.foundation_top_card(*suit) {
 						if card.can_stack_onto_in_foundation(top) {
-							moves.push(Move::ToFoundation(*suit))
+							moves.push(Move::ToFoundation(*suit));
+							break;
 						}
 					}
 				}
@@ -290,7 +326,8 @@ impl Game {
 					}
 				}
 			}
-			MouseTarget::Pile{pile_index, target_card:card, n_cards, ..} => {
+			MouseTarget::EmptyPile(_) => {} // impossible
+			MouseTarget::PileCard{pile_index, target_card:card, n_cards, ..} => {
 				if card.rank == Rank::Ace {
 					moves.push(Move::ToFoundation(card.suit))
 				}
@@ -319,7 +356,8 @@ impl Game {
 					for suit in Suit::all() {
 						if let Some(top) = self.foundation_top_card(*suit) {
 							if card.can_stack_onto_in_foundation(top) {
-								moves.push(Move::ToFoundation(*suit))
+								moves.push(Move::ToFoundation(*suit));
+								break;
 							}
 						}
 					}
@@ -359,7 +397,8 @@ impl Game {
 					Move::ToFoundation(_) => {} // impossible
 				}
 			}
-			MouseTarget::Pile{pile_index, target_card:top_card, target_card_index, ..} => {
+			MouseTarget::EmptyPile(_) => {} // impossible
+			MouseTarget::PileCard{pile_index, target_card:top_card, target_card_index, ..} => {
 				let pile = &mut self.piles[pile_index];
 				let removed:Vec<Card> = pile.visible.drain(target_card_index..).collect();
 				if pile.visible.is_empty() {
@@ -392,7 +431,14 @@ impl Game {
 							MouseTarget::StockTop => {} // impossible
 							MouseTarget::StockDeck => {} // impossible
 							MouseTarget::Foundation(_) => {} // not relevant for this move in progress
-							MouseTarget::Pile{pile_index:target_pile_index, ..} => {
+							MouseTarget::EmptyPile(target_pile_index) => {
+								if mip_pile_index == target_pile_index {
+									self.exec_move(mip.target, mv);
+									self.move_in_progress = None;
+									return
+								}
+							}
+							MouseTarget::PileCard{pile_index:target_pile_index, ..} => {
 								if mip_pile_index == target_pile_index {
 									self.exec_move(mip.target, mv);
 									self.move_in_progress = None;
@@ -412,12 +458,15 @@ impl Game {
 									return
 								}
 							}
-							MouseTarget::Pile{..} => {} // not relevant for this move in progress
+							MouseTarget::EmptyPile(_) => {} // not relevant for this move in progress
+							MouseTarget::PileCard{..} => {} // not relevant for this move in progress
 						}
 					}
 				}
 			}
 		}
+		// if we got to here, it means the move failed. Clear it
+		self.move_in_progress = None;
 	}
 
 	pub fn debug(&self) {
@@ -435,7 +484,8 @@ enum MouseTarget {
 	StockTop, // the visible card
 	StockDeck, // the rest of the stock
 	Foundation(Suit),
-	Pile{
+	EmptyPile(usize),
+	PileCard{
 		pile_index:usize, // 0 is the leftmost pile
 		n_cards:u8, // 1 = only the top card, 2 = two top cards, etc
 		target_card:Card, // the card that was targeted
@@ -573,7 +623,7 @@ impl Card {
 
 	// returns true if self can stack on top of other in a foundation stack, eg. if self is 2D and other is AD.
 	pub fn can_stack_onto_in_foundation(&self, other:Card) -> bool {
-		self.col() == other.col() && self.rank.index() - other.rank.index() == 1
+		self.suit == other.suit && self.rank.index() - other.rank.index() == 1
 	}
 }
 
