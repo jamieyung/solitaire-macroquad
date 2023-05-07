@@ -19,6 +19,12 @@ async fn main() {
 		}
 
 		draw_game(&game);
+
+		let (x, y) = mouse_position();
+		if let Some(target) = game.mouse_hit(x, y) {
+			draw_mouse_hit(&game, target);
+		}
+
 		next_frame().await;
 	}
 }
@@ -35,6 +41,17 @@ const CARD_BACK_COLOUR: Color = BLUE; // colour on the back of the cards
 const PILES_Y: f32 = CARD_H * 2.; // the topmost y-coord of the piles area
 const PILE_CARD_V_OFFSET: f32 = CARD_FONT_SIZE*0.6; // vertical distance between cards in a pile
 const PILE_H_OFFSET: f32 = CARD_W * 1.5; // horizontal distance between the left edge of adjacent piles
+const MOUSE_TARGET_STROKE_W: f32 = 3.;
+const MOUSE_TARGET_STROKE_COLOUR: Color = MAGENTA;
+
+fn draw_mouse_hit(game: &Game, target: MouseTarget) {
+	match target {
+		MouseTarget::Stock => {
+			draw_rectangle_lines(INSET + PILE_H_OFFSET, INSET, CARD_W, CARD_H, MOUSE_TARGET_STROKE_W, MOUSE_TARGET_STROKE_COLOUR);
+		}
+		_ => {} // TODO
+	}
+}
 
 fn draw_game(game: &Game) {
 	// draw stock
@@ -136,7 +153,30 @@ impl Game {
 		let card = self.stock.pop_front().unwrap();
 		self.stock.push_back(card);
 	}
+
+	pub fn mouse_hit(&self, x:f32, y:f32) -> Option<MouseTarget> {
+		// check stock
+		if !self.stock.is_empty() && Card::mouse_hit(INSET + PILE_H_OFFSET, INSET, x, y) {
+			return Some(MouseTarget::Stock)
+		}
+
+		return None
+	}
 }
+
+enum MouseTarget {
+	Stock,
+	Foundation(Suit),
+	Pile{
+		pile_index:u8, // 0 is the leftmost pile
+		n_cards:u8, // 1 = only the top card, 2 = two top cards, etc
+	},
+}
+
+// enum Move {
+// 	ToPile(u8),
+// 	ToFoundation(Suit),
+// }
 
 struct Pile {
 	hidden: Vec<Card>,
@@ -255,6 +295,11 @@ impl Card {
         ];
         &CARDS
     }
+
+	pub fn mouse_hit(cx:f32, cy:f32, mx:f32, my:f32) -> bool {
+		return mx >= cx && mx <= cx+CARD_W
+			&& my >= cy && my <= cy+CARD_H
+	}
 }
 
 fn shuffle(cards: &mut[Card]) {
