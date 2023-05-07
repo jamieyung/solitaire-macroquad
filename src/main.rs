@@ -1,5 +1,5 @@
 use macroquad::prelude::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 #[macroquad::main("Solitaire")]
 async fn main() {
@@ -7,17 +7,18 @@ async fn main() {
 	let duration_since_epoch = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap();
 	rand::srand(duration_since_epoch.as_secs());
 
-	let game = Game::new();
+	let mut game = Game::new();
 
     loop {
 		clear_background(GREEN);
 
-		if is_key_down(KeyCode::Q) {
+		if is_key_down(KeyCode::Escape) {
 			return;
+		} else if is_key_pressed(KeyCode::Q) {
+			game.cycle_stock();
 		}
 
 		draw_game(&game);
-
 		next_frame().await;
 	}
 }
@@ -95,26 +96,26 @@ fn draw_card(c: &Card, x:f32, y:f32, visible:bool) {
 }
 
 struct Game {
-	stock: Vec<Card>,
+	stock: VecDeque<Card>,
 	piles: Vec<Pile>,
 	foundation_fill_levels: HashMap<Suit, Rank>,
 }
 
 impl Game {
 	pub fn new() -> Game {
+		let mut cards = Card::all_cards().to_vec();
+		shuffle(&mut cards);
+
 		let mut game = Game {
-			stock: Vec::new(),
+			stock: VecDeque::from(cards),
 			piles: Vec::new(),
 			foundation_fill_levels: HashMap::new(),
 		};
 
-		game.stock = Card::all_cards().to_vec();
-		shuffle(&mut game.stock);
-
 		for pile_size in 1..=N_PILES {
 			let mut pile = Pile::new();
 			for i in 0..pile_size {
-				let card = game.stock.pop().unwrap();
+				let card = game.stock.pop_front().unwrap();
 				if i == pile_size - 1 {
 					pile.visible.push(card);
 				} else {
@@ -125,6 +126,15 @@ impl Game {
 		}
 
 		return game;
+	}
+
+	// does nothing if the stock has fewer than 2 cards
+	pub fn cycle_stock(&mut self) {
+		if self.stock.len() < 2 {
+			return
+		}
+		let card = self.stock.pop_front().unwrap();
+		self.stock.push_back(card);
 	}
 }
 
