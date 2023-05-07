@@ -202,11 +202,17 @@ impl Game {
 		return None
 	}
 
+	pub fn foundation_top_card(&self, suit:Suit) -> Option<Card> {
+		let rank = self.foundation_fill_levels.get(&suit)?;
+		Some(Card::new(suit, *rank))
+	}
+
 	pub fn calc_moves(&mut self, target:MouseTarget) -> Option<Vec<Move>> {
-		return match target {
+		let mut moves: Vec<Move> = Vec::new();
+
+		match target {
 			MouseTarget::Stock => {
 				let card = self.stock.front()?;
-				let mut moves: Vec<Move> = Vec::new();
 
 				if card.rank == Rank::Ace {
 					moves.push(Move::ToFoundation(card.suit))
@@ -214,11 +220,11 @@ impl Game {
 
 				for (i, pile) in self.piles[..].into_iter().enumerate() {
 					if pile.is_empty() && card.rank == Rank::King {
-						// if the pile is empty and the stock card is a king, it's a valid move
+						// if the pile is empty and the card is a king, it's a valid move
 						moves.push(Move::ToPile(i));
 					}
 
-					// if the stock card can go onto the top visible card, it's a valid move
+					// if the card can go onto the top visible card, it's a valid move
 					else {
 						if let Some(top) = pile.top_card() {
 							if card.can_stack_onto(top) {
@@ -227,16 +233,19 @@ impl Game {
 						}
 					}
 				}
-				if moves.is_empty() {
-					None
-				} else {
-					Some(moves)
+			}
+			MouseTarget::Foundation(suit) => {
+				let card = self.foundation_top_card(suit)?;
+				for (i, pile) in self.piles[..].into_iter().enumerate() {
+					// if the card can go onto the top visible card, it's a valid move
+					if let Some(top) = pile.top_card() {
+						if card.can_stack_onto(top) {
+							moves.push(Move::ToPile(i));
+						}
+					}
 				}
 			}
-			MouseTarget::Foundation(_) => None, // TODO
 			MouseTarget::Pile{pile_index, target_card:card, ..} => {
-				let mut moves: Vec<Move> = Vec::new();
-
 				if card.rank == Rank::Ace {
 					moves.push(Move::ToFoundation(card.suit))
 				}
@@ -245,11 +254,11 @@ impl Game {
 					if i == pile_index { continue }
 
 					if pile.is_empty() && card.rank == Rank::King {
-						// if the pile is empty and the stock card is a king, it's a valid move
+						// if the pile is empty and the card is a king, it's a valid move
 						moves.push(Move::ToPile(i));
 					}
 
-					// if the stock card can go onto the top visible card, it's a valid move
+					// if the card can go onto the top visible card, it's a valid move
 					else {
 						if let Some(top) = pile.top_card() {
 							if card.can_stack_onto(top) {
@@ -258,12 +267,13 @@ impl Game {
 						}
 					}
 				}
-				if moves.is_empty() {
-					None
-				} else {
-					Some(moves)
-				}
 			}
+		}
+
+		if moves.is_empty() {
+			None
+		} else {
+			Some(moves)
 		}
 	}
 }
