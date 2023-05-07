@@ -22,17 +22,18 @@ async fn main() {
 	}
 }
 
-const N_PILES: u8 = 7;
-const INSET: f32 = 30.;
-const FOUNDATIONS_X: f32 = INSET+3.*PILE_H_OFFSET;
-const CARD_W: f32 = 60.;
-const CARD_H: f32 = CARD_W*1.4;
-const CARD_BORDER_WIDTH: f32 = 2.;
-const CARD_FONT_SIZE: f32 = CARD_W*0.6;
-const CARD_BACK_WHITE_BORDER_MARGIN: f32 = 3.;
-const PILES_Y: f32 = CARD_H * 2.;
-const PILE_CARD_V_OFFSET: f32 = CARD_FONT_SIZE*0.6;
-const PILE_H_OFFSET: f32 = CARD_W * 1.5;
+const N_PILES: u8 = 7; // number of piles
+const INSET: f32 = 30.; // distance from edge of screen to the cards
+const FOUNDATIONS_X: f32 = INSET+3.*PILE_H_OFFSET; // the leftmost x-coord of the foundation piles
+const CARD_W: f32 = 60.; // card width
+const CARD_H: f32 = CARD_W*1.4; // card height
+const CARD_BORDER_WIDTH: f32 = 2.; // width of the black border around the cards
+const CARD_FONT_SIZE: f32 = CARD_W*0.6; // card font size
+const CARD_BACK_WHITE_BORDER_MARGIN: f32 = 3.; // size of the white strip around the card back colour
+const CARD_BACK_COLOUR: Color = BLUE; // colour on the back of the cards
+const PILES_Y: f32 = CARD_H * 2.; // the topmost y-coord of the piles area
+const PILE_CARD_V_OFFSET: f32 = CARD_FONT_SIZE*0.6; // vertical distance between cards in a pile
+const PILE_H_OFFSET: f32 = CARD_W * 1.5; // horizontal distance between the left edge of adjacent piles
 
 fn draw_game(game: &Game) {
 	// draw stock
@@ -89,7 +90,7 @@ fn draw_card(c: &Card, x:f32, y:f32, visible:bool) {
 	} else {
 		draw_rectangle(
 			x+CARD_BACK_WHITE_BORDER_MARGIN, y+CARD_BACK_WHITE_BORDER_MARGIN,
-			CARD_W-2.*CARD_BACK_WHITE_BORDER_MARGIN, CARD_H-2.*CARD_BACK_WHITE_BORDER_MARGIN, BLUE);
+			CARD_W-2.*CARD_BACK_WHITE_BORDER_MARGIN, CARD_H-2.*CARD_BACK_WHITE_BORDER_MARGIN, CARD_BACK_COLOUR);
 	}
 }
 
