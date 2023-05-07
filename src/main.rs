@@ -218,6 +218,7 @@ impl Game {
 					moves.push(Move::ToFoundation(card.suit))
 				}
 
+				// consider moves to the piles
 				for (i, pile) in self.piles[..].into_iter().enumerate() {
 					if pile.is_empty() && card.rank == Rank::King {
 						// if the pile is empty and the card is a king, it's a valid move
@@ -227,29 +228,41 @@ impl Game {
 					// if the card can go onto the top visible card, it's a valid move
 					else {
 						if let Some(top) = pile.top_card() {
-							if card.can_stack_onto(top) {
+							if card.can_pile_onto(top) {
 								moves.push(Move::ToPile(i));
 							}
+						}
+					}
+				}
+
+				// consider moves to the foundation
+				for suit in Suit::all() {
+					if let Some(top) = self.foundation_top_card(*suit) {
+						if card.can_stack_onto_in_foundation(top) {
+							moves.push(Move::ToFoundation(*suit))
 						}
 					}
 				}
 			}
 			MouseTarget::Foundation(suit) => {
 				let card = self.foundation_top_card(suit)?;
+
+				// consider moves to the piles
 				for (i, pile) in self.piles[..].into_iter().enumerate() {
 					// if the card can go onto the top visible card, it's a valid move
 					if let Some(top) = pile.top_card() {
-						if card.can_stack_onto(top) {
+						if card.can_pile_onto(top) {
 							moves.push(Move::ToPile(i));
 						}
 					}
 				}
 			}
-			MouseTarget::Pile{pile_index, target_card:card, ..} => {
+			MouseTarget::Pile{pile_index, target_card:card, n_cards, ..} => {
 				if card.rank == Rank::Ace {
 					moves.push(Move::ToFoundation(card.suit))
 				}
 
+				// consider moves to other piles
 				for (i, pile) in self.piles[..].into_iter().enumerate() {
 					if i == pile_index { continue }
 
@@ -261,8 +274,19 @@ impl Game {
 					// if the card can go onto the top visible card, it's a valid move
 					else {
 						if let Some(top) = pile.top_card() {
-							if card.can_stack_onto(top) {
+							if card.can_pile_onto(top) {
 								moves.push(Move::ToPile(i));
+							}
+						}
+					}
+				}
+
+				// consider moves to the foundation (iff it's a single card being targeted)
+				if n_cards == 1 {
+					for suit in Suit::all() {
+						if let Some(top) = self.foundation_top_card(*suit) {
+							if card.can_stack_onto_in_foundation(top) {
+								moves.push(Move::ToFoundation(*suit))
 							}
 						}
 					}
@@ -450,9 +474,14 @@ impl Card {
 			&& my >= cy && my <= cy+CARD_H
 	}
 
-	// returns true if self can stack on top of other, eg. if self is 2D and other is 3S.
-	pub fn can_stack_onto(&self, other:Card) -> bool {
+	// returns true if self can stack on top of other in a pile, eg. if self is 2D and other is 3S.
+	pub fn can_pile_onto(&self, other:Card) -> bool {
 		self.col() != other.col() && other.rank_index() - self.rank_index() == 1
+	}
+
+	// returns true if self can stack on top of other in a foundation stack, eg. if self is 2D and other is AD.
+	pub fn can_stack_onto_in_foundation(&self, other:Card) -> bool {
+		self.col() == other.col() && self.rank_index() - other.rank_index() == 1
 	}
 }
 
