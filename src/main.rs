@@ -2,33 +2,7 @@ use macroquad::prelude::*;
 
 #[macroquad::main("Hello")]
 async fn main() {
-	let mut pile = Pile {
-		cards: Vec::new(),
-	};
-
-	pile.cards.push(Card {
-		suit: Suit::Diamonds,
-		val: Value::Ace,
-		hidden: false,
-	});
-
-	pile.cards.push(Card {
-		suit: Suit::Clubs,
-		val: Value::Six,
-		hidden: false,
-	});
-
-	pile.cards.push(Card {
-		suit: Suit::Hearts,
-		val: Value::Ten,
-		hidden: false,
-	});
-
-	pile.cards.push(Card {
-		suit: Suit::Spades,
-		val: Value::King,
-		hidden: false,
-	});
+	let game = Game::new();
 
     loop {
 		clear_background(GREEN);
@@ -37,7 +11,7 @@ async fn main() {
 			return;
 		}
 
-		draw_pile(&pile, 10., 10.);
+		draw_game(&game);
 
 		next_frame().await;
 	}
@@ -47,79 +21,141 @@ const CARD_W: f32 = 50.;
 const CARD_H: f32 = 70.;
 const PILE_CARD_OFFSET: f32 = 20.;
 
-fn draw_pile(pile: &Pile, x:f32, y:f32) {
-	let s = &pile.cards[..];
-	for (i, card) in s.into_iter().enumerate() {
-		draw_card(card, x, y + (i as f32) * PILE_CARD_OFFSET);
+fn draw_game(game: &Game) {
+	for (i, pile) in game.piles[..].into_iter().enumerate() {
+		let x = 30. + i as f32 * CARD_W * 1.5;
+		let y = 30.;
+		draw_pile(pile, x, y);
 	}
 }
 
-fn draw_card(c: &Card, x:f32, y:f32) {
+fn draw_pile(pile: &Pile, x:f32, y:f32) {
+	for (i, card) in pile.hidden[..].into_iter().enumerate() {
+		draw_card(card, x, y + i as f32 * PILE_CARD_OFFSET, false);
+	}
+	let n_hidden = pile.hidden.len() as f32;
+	for (i, card) in pile.visible[..].into_iter().enumerate() {
+		draw_card(card, x, y + (i as f32 + n_hidden) * PILE_CARD_OFFSET, true);
+	}
+}
+
+fn draw_card(c: &Card, x:f32, y:f32, visible:bool) {
 	draw_rectangle(x, y, CARD_W, CARD_H, WHITE);
 	draw_rectangle_lines(x, y, CARD_W, CARD_H, 2., BLACK);
 
-	if c.hidden {
-		draw_rectangle(x+3., y+3., CARD_W-6., CARD_H-6., BLUE);
+	if visible {
+		let col = c.card_col();
+		draw_text(c.card_rank_letter(), x, y + 17.0, 30.0, col);
+		draw_text(c.card_suit_letter(), x+CARD_W*0.7, y + 17.0, 30.0, col);
 	} else {
-		let col = card_col(c);
-		draw_text(card_value_letter(c), x, y + 17.0, 30.0, col);
-		draw_text(card_suit_letter(c), x+CARD_W*0.7, y + 17.0, 30.0, col);
+		draw_rectangle(x+3., y+3., CARD_W-6., CARD_H-6., BLUE);
 	}
 }
 
-fn card_col(c: &Card) -> Color {
-	return match c.suit {
-		Suit::Diamonds | Suit::Hearts => RED,
-		Suit::Clubs | Suit::Spades => BLACK,
-	}
+struct Game {
+	piles: Vec<Pile>,
 }
 
-fn card_suit_letter(c: &Card) -> &str {
-	return match c.suit {
-		Suit::Diamonds => "D",
-		Suit::Clubs => "C",
-		Suit::Hearts => "H",
-		Suit::Spades => "S",
-	}
-}
+impl Game {
+	pub fn new() -> Game {
+		let mut game = Game {
+			piles: Vec::new(),
+		};
 
-fn card_value_letter(c: &Card) -> &str {
-	return match c.val {
-		Value::Ace => "A",
-		Value::One => "1",
-		Value::Two => "2",
-		Value::Three => "3",
-		Value::Four => "4",
-		Value::Five => "5",
-		Value::Six => "6",
-		Value::Seven => "7",
-		Value::Eight => "8",
-		Value::Nine => "9",
-		Value::Ten => "10",
-		Value::Jack => "J",
-		Value::Queen => "Q",
-		Value::King => "K",
+		let mut pile = Pile {
+			hidden: Vec::new(),
+			visible: Vec::new(),
+		};
+
+		pile.hidden.push(Card {
+			suit: Suit::Diamonds,
+			rank: Rank::Ace,
+		});
+
+		pile.hidden.push(Card {
+			suit: Suit::Clubs,
+			rank: Rank::Six,
+		});
+
+		pile.hidden.push(Card {
+			suit: Suit::Hearts,
+			rank: Rank::Ten,
+		});
+
+		pile.visible.push(Card {
+			suit: Suit::Spades,
+			rank: Rank::King,
+		});
+
+		game.piles.push(pile);
+
+		return game;
 	}
 }
 
 struct Pile {
-	cards: Vec<Card>
+	hidden: Vec<Card>,
+	visible: Vec<Card>,
 }
 
 struct Card {
 	suit: Suit,
-	val: Value,
-	hidden: bool,
+	rank: Rank,
+}
+
+impl Card {
+	pub fn card_col(&self) -> Color {
+		return match self.suit {
+			Suit::Diamonds | Suit::Hearts => RED,
+			Suit::Clubs | Suit::Spades => BLACK,
+		}
+	}
+
+	pub fn card_suit_letter(&self) -> &str {
+		return match self.suit {
+			Suit::Diamonds => "D",
+			Suit::Clubs => "C",
+			Suit::Hearts => "H",
+			Suit::Spades => "S",
+		}
+	}
+
+	pub fn card_rank_letter(&self) -> &str {
+		return match self.rank {
+			Rank::Ace => "A",
+			Rank::One => "1",
+			Rank::Two => "2",
+			Rank::Three => "3",
+			Rank::Four => "4",
+			Rank::Five => "5",
+			Rank::Six => "6",
+			Rank::Seven => "7",
+			Rank::Eight => "8",
+			Rank::Nine => "9",
+			Rank::Ten => "10",
+			Rank::Jack => "J",
+			Rank::Queen => "Q",
+			Rank::King => "K",
+		}
+	}
+}
+
+fn shuffle(cards: &mut[Card]) {
+	let l = cards.len();
+	for n in 0..l {
+		let i = rand::gen_range(0, l - n);
+		cards.swap(i, l - n - 1);
+	}
 }
 
 enum Suit {
 	Diamonds,
 	Clubs,
 	Hearts,
-	Spades
+	Spades,
 }
 
-enum Value {
+enum Rank {
 	Ace,
 	One,
 	Two,
@@ -133,5 +169,5 @@ enum Value {
 	Ten,
 	Jack,
 	Queen,
-	King
+	King,
 }
