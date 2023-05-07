@@ -141,8 +141,8 @@ fn draw_card(c: &Card, x:f32, y:f32, visible:bool) {
 
 	if visible {
 		let col = c.col();
-		draw_text(c.rank_letter(), x, y + CARD_FONT_SIZE*0.55, CARD_FONT_SIZE, col);
-		draw_text(c.suit_letter(), x+CARD_W*0.7, y + CARD_FONT_SIZE*0.55, CARD_FONT_SIZE, col);
+		draw_text(c.rank.letter(), x, y + CARD_FONT_SIZE*0.55, CARD_FONT_SIZE, col);
+		draw_text(c.suit.letter(), x+CARD_W*0.7, y + CARD_FONT_SIZE*0.55, CARD_FONT_SIZE, col);
 	} else {
 		draw_rectangle(
 			x+CARD_BACK_WHITE_BORDER_MARGIN, y+CARD_BACK_WHITE_BORDER_MARGIN,
@@ -502,51 +502,6 @@ impl Card {
 		}
 	}
 
-	pub fn suit_letter(&self) -> &str {
-		return match self.suit {
-			Suit::Diamonds => "D",
-			Suit::Clubs => "C",
-			Suit::Hearts => "H",
-			Suit::Spades => "S",
-		}
-	}
-
-	pub fn rank_letter(&self) -> &str {
-		return match self.rank {
-			Rank::Ace => "A",
-			Rank::Two => "2",
-			Rank::Three => "3",
-			Rank::Four => "4",
-			Rank::Five => "5",
-			Rank::Six => "6",
-			Rank::Seven => "7",
-			Rank::Eight => "8",
-			Rank::Nine => "9",
-			Rank::Ten => "10",
-			Rank::Jack => "J",
-			Rank::Queen => "Q",
-			Rank::King => "K",
-		}
-	}
-
-	pub fn rank_index(&self) -> i8 {
-		return match self.rank {
-			Rank::Ace => 0,
-			Rank::Two => 1,
-			Rank::Three => 2,
-			Rank::Four => 3,
-			Rank::Five => 4,
-			Rank::Six => 5,
-			Rank::Seven => 6,
-			Rank::Eight => 7,
-			Rank::Nine => 8,
-			Rank::Ten => 9,
-			Rank::Jack => 10,
-			Rank::Queen => 11,
-			Rank::King => 12,
-		}
-	}
-
 	// Returns an array slice containing all the cards in a standard 52-card deck
 	pub fn all_cards() -> &'static [Card] {
 		static CARDS: [Card; 52] = [
@@ -613,12 +568,12 @@ impl Card {
 
 	// returns true if self can stack on top of other in a pile, eg. if self is 2D and other is 3S.
 	pub fn can_pile_onto(&self, other:Card) -> bool {
-		self.col() != other.col() && other.rank_index() - self.rank_index() == 1
+		self.col() != other.col() && other.rank.index() - self.rank.index() == 1
 	}
 
 	// returns true if self can stack on top of other in a foundation stack, eg. if self is 2D and other is AD.
 	pub fn can_stack_onto_in_foundation(&self, other:Card) -> bool {
-		self.col() == other.col() && self.rank_index() - other.rank_index() == 1
+		self.col() == other.col() && self.rank.index() - other.rank.index() == 1
 	}
 }
 
@@ -649,6 +604,15 @@ impl Suit {
 		&SUITS
 	}
 
+	pub fn letter(&self) -> &str {
+		return match self {
+			Suit::Diamonds => "D",
+			Suit::Clubs => "C",
+			Suit::Hearts => "H",
+			Suit::Spades => "S",
+		}
+	}
+
 	pub fn foundation_offset(&self) -> f32 {
 		return match self {
 			Suit::Diamonds => 0.,
@@ -674,4 +638,42 @@ enum Rank {
 	Jack,
 	Queen,
 	King,
+}
+
+impl Rank {
+	pub fn letter(&self) -> &str {
+		return match self {
+			Rank::Ace => "A",
+			Rank::Two => "2",
+			Rank::Three => "3",
+			Rank::Four => "4",
+			Rank::Five => "5",
+			Rank::Six => "6",
+			Rank::Seven => "7",
+			Rank::Eight => "8",
+			Rank::Nine => "9",
+			Rank::Ten => "10",
+			Rank::Jack => "J",
+			Rank::Queen => "Q",
+			Rank::King => "K",
+		}
+	}
+
+	pub fn index(&self) -> i8 {
+		return match self {
+			Rank::Ace => 0,
+			Rank::Two => 1,
+			Rank::Three => 2,
+			Rank::Four => 3,
+			Rank::Five => 4,
+			Rank::Six => 5,
+			Rank::Seven => 6,
+			Rank::Eight => 7,
+			Rank::Nine => 8,
+			Rank::Ten => 9,
+			Rank::Jack => 10,
+			Rank::Queen => 11,
+			Rank::King => 12,
+		}
+	}
 }
