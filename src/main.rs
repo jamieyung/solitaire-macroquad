@@ -14,10 +14,12 @@ async fn main() {
 
 		if is_key_down(KeyCode::Escape) {
 			return;
-		} else if is_key_pressed(KeyCode::Q) {
+		} else if is_key_pressed(KeyCode::Space) {
 			game.cycle_stock();
 		} else if is_key_pressed(KeyCode::R) {
 			game = Game::new();
+		} else if is_key_pressed(KeyCode::D) {
+			game.debug();
 		}
 
 		draw_game(&game);
@@ -347,6 +349,13 @@ impl Game {
 			}
 		}
 		return false
+	}
+
+	pub fn debug(&self) {
+		println!("stock: {:?}", self.stock);
+		println!("stock top: {:?}", self.stock.front());
+		println!("piles: {:?}", self.piles);
+		println!("foundations: {:?}", self.foundation_fill_levels);
 	}
 }
 
