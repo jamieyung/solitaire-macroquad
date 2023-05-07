@@ -22,7 +22,7 @@ async fn main() {
 
 		let (x, y) = mouse_position();
 		if let Some(target) = game.mouse_hit(x, y) {
-			draw_mouse_hit(&game, target);
+			draw_mouse_hit(target);
 		}
 
 		next_frame().await;
@@ -41,15 +41,23 @@ const CARD_BACK_COLOUR: Color = BLUE; // colour on the back of the cards
 const PILES_Y: f32 = CARD_H * 2.; // the topmost y-coord of the piles area
 const PILE_CARD_V_OFFSET: f32 = CARD_FONT_SIZE*0.6; // vertical distance between cards in a pile
 const PILE_H_OFFSET: f32 = CARD_W * 1.5; // horizontal distance between the left edge of adjacent piles
-const MOUSE_TARGET_STROKE_W: f32 = 3.;
-const MOUSE_TARGET_STROKE_COLOUR: Color = MAGENTA;
+const MOUSE_TARGET_COLOUR: Color = Color::new(1.00, 0.00, 1.00, 0.3);
 
-fn draw_mouse_hit(game: &Game, target: MouseTarget) {
+fn draw_mouse_hit(target: MouseTarget) {
 	match target {
 		MouseTarget::Stock => {
-			draw_rectangle_lines(INSET + PILE_H_OFFSET, INSET, CARD_W, CARD_H, MOUSE_TARGET_STROKE_W, MOUSE_TARGET_STROKE_COLOUR);
+			draw_rectangle(INSET + PILE_H_OFFSET, INSET, CARD_W, CARD_H, MOUSE_TARGET_COLOUR);
 		}
-		_ => {} // TODO
+		MouseTarget::Foundation(suit) => {
+			draw_rectangle(FOUNDATIONS_X+suit.foundation_offset()*PILE_H_OFFSET, INSET, CARD_W, CARD_H, MOUSE_TARGET_COLOUR);
+		}
+		MouseTarget::Pile{pile_index, n_cards, top} => {
+			let x = Pile::pile_x(pile_index);
+			let y = top;
+			let w = CARD_W;
+			let h = CARD_H + PILE_CARD_V_OFFSET*((n_cards-1) as f32);
+			draw_rectangle(x, y, w, h, MOUSE_TARGET_COLOUR);
+		}
 	}
 }
 
@@ -64,16 +72,14 @@ fn draw_game(game: &Game) {
 
 	// draw piles
 	for (i, pile) in game.piles[..].into_iter().enumerate() {
-		let x = INSET + i as f32 * PILE_H_OFFSET;
-		let y = PILES_Y;
-		draw_pile(pile, x, y);
+		let x = Pile::pile_x(i);
+		draw_pile(pile, x, PILES_Y);
 	}
 
 	// draw foundations
-	draw_foundation(Suit::Diamonds, game.foundation_fill_levels.get(&Suit::Diamonds), FOUNDATIONS_X, INSET);
-	draw_foundation(Suit::Clubs, game.foundation_fill_levels.get(&Suit::Clubs), FOUNDATIONS_X+1.*PILE_H_OFFSET, INSET);
-	draw_foundation(Suit::Hearts, game.foundation_fill_levels.get(&Suit::Hearts), FOUNDATIONS_X+2.*PILE_H_OFFSET, INSET);
-	draw_foundation(Suit::Spades, game.foundation_fill_levels.get(&Suit::Spades), FOUNDATIONS_X+3.*PILE_H_OFFSET, INSET);
+	for suit in Suit::all() {
+		draw_foundation(suit.clone(), game.foundation_fill_levels.get(&suit), FOUNDATIONS_X+suit.foundation_offset()*PILE_H_OFFSET, INSET);
+	}
 }
 
 fn draw_foundation(suit: Suit, rank: Option<&Rank>, x:f32, y:f32) {
@@ -154,10 +160,36 @@ impl Game {
 		self.stock.push_back(card);
 	}
 
-	pub fn mouse_hit(&self, x:f32, y:f32) -> Option<MouseTarget> {
+	pub fn mouse_hit(&self, mx:f32, my:f32) -> Option<MouseTarget> {
 		// check stock
-		if !self.stock.is_empty() && Card::mouse_hit(INSET + PILE_H_OFFSET, INSET, x, y) {
+		if !self.stock.is_empty() && Card::mouse_hit(INSET + PILE_H_OFFSET, INSET, mx, my) {
 			return Some(MouseTarget::Stock)
+		}
+
+		// check foundations
+		for suit in Suit::all() {
+			if self.foundation_fill_levels.contains_key(&suit) && Card::mouse_hit(FOUNDATIONS_X+suit.foundation_offset()*PILE_H_OFFSET, INSET, mx, my) {
+				return Some(MouseTarget::Foundation(suit.clone()))
+			}
+		}
+
+		// check piles
+		for (pile_index, pile) in self.piles[..].into_iter().enumerate() {
+			let x = Pile::pile_x(pile_index);
+			if mx < x || mx > x+CARD_W {continue}
+
+			// check visible cards in reverse order
+			let n_hidden = pile.hidden.len() as f32;
+			for card_index in (0..pile.visible.len()).rev() {
+				let y = PILES_Y + (card_index as f32 + n_hidden) * PILE_CARD_V_OFFSET;
+				if Card::mouse_hit(x, y, mx, my) {
+					return Some(MouseTarget::Pile{
+						pile_index,
+						n_cards: (pile.visible.len() - card_index) as u8,
+						top: y,
+					})
+				}
+			}
 		}
 
 		return None
@@ -168,8 +200,9 @@ enum MouseTarget {
 	Stock,
 	Foundation(Suit),
 	Pile{
-		pile_index:u8, // 0 is the leftmost pile
+		pile_index:usize, // 0 is the leftmost pile
 		n_cards:u8, // 1 = only the top card, 2 = two top cards, etc
+		top:f32, // the y-coord of the top of the targeted card
 	},
 }
 
@@ -189,6 +222,11 @@ impl Pile {
 			hidden: Vec::new(),
 			visible: Vec::new(),
 		};
+	}
+
+	// x-coord of left edge of the pile
+	pub fn pile_x(pile_index:usize) -> f32 {
+		return INSET + pile_index as f32 * PILE_H_OFFSET;
 	}
 }
 
@@ -237,7 +275,7 @@ impl Card {
 		}
 	}
  
-	/// Returns an array slice containing all the cards in a standard 52-card deck
+	// Returns an array slice containing all the cards in a standard 52-card deck
     pub fn all_cards() -> &'static [Card] {
         static CARDS: [Card; 52] = [
             Card { suit: Suit::Spades, rank: Rank::Two },
@@ -316,6 +354,27 @@ enum Suit {
 	Clubs,
 	Hearts,
 	Spades,
+}
+
+impl Suit {
+	pub fn all() -> &'static [Suit] {
+        static SUITS: [Suit; 4] = [
+            Suit::Diamonds,
+            Suit::Clubs,
+            Suit::Hearts,
+            Suit::Spades,
+        ];
+        &SUITS
+	}
+
+	pub fn foundation_offset(&self) -> f32 {
+		return match self {
+			Suit::Diamonds => 0.,
+			Suit::Clubs => 1.,
+			Suit::Hearts => 2.,
+			Suit::Spades => 3.
+		}
+	}
 }
 
 #[derive(Clone, Debug)]
