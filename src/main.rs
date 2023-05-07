@@ -57,7 +57,7 @@ fn draw_mouse_hit(target: MouseTarget) {
 		MouseTarget::Foundation(suit) => {
 			draw_rectangle(FOUNDATIONS_X+suit.foundation_offset()*PILE_H_OFFSET, INSET, CARD_W, CARD_H, MOUSE_TARGET_COLOUR);
 		}
-		MouseTarget::Pile{pile_index, n_cards, top} => {
+		MouseTarget::Pile{pile_index, n_cards, top, ..} => {
 			let x = Pile::pile_x(pile_index);
 			let y = top;
 			let w = CARD_W;
@@ -186,12 +186,13 @@ impl Game {
 
 			// check visible cards in reverse order
 			let n_hidden = pile.hidden.len() as f32;
-			for card_index in (0..pile.visible.len()).rev() {
+			for (card_index, card) in pile.visible[..].into_iter().enumerate().rev() {
 				let y = PILES_Y + (card_index as f32 + n_hidden) * PILE_CARD_V_OFFSET;
 				if Card::mouse_hit(x, y, mx, my) {
 					return Some(MouseTarget::Pile{
 						pile_index,
 						n_cards: (pile.visible.len() - card_index) as u8,
+						target_card: *card,
 						top: y,
 					})
 				}
@@ -233,7 +234,36 @@ impl Game {
 				}
 			}
 			MouseTarget::Foundation(_) => None, // TODO
-			MouseTarget::Pile{..} => None // TODO
+			MouseTarget::Pile{pile_index, target_card:card, ..} => {
+				let mut moves: Vec<Move> = Vec::new();
+
+				if card.rank == Rank::Ace {
+					moves.push(Move::ToFoundation(card.suit))
+				}
+
+				for (i, pile) in self.piles[..].into_iter().enumerate() {
+					if i == pile_index { continue }
+
+					if pile.is_empty() && card.rank == Rank::King {
+						// if the pile is empty and the stock card is a king, it's a valid move
+						moves.push(Move::ToPile(i));
+					}
+
+					// if the stock card can go onto the top visible card, it's a valid move
+					else {
+						if let Some(top) = pile.top_card() {
+							if card.can_stack_onto(top) {
+								moves.push(Move::ToPile(i));
+							}
+						}
+					}
+				}
+				if moves.is_empty() {
+					None
+				} else {
+					Some(moves)
+				}
+			}
 		}
 	}
 }
@@ -245,6 +275,7 @@ enum MouseTarget {
 	Pile{
 		pile_index:usize, // 0 is the leftmost pile
 		n_cards:u8, // 1 = only the top card, 2 = two top cards, etc
+		target_card:Card, // the card that was targeted
 		top:f32, // the y-coord of the top of the targeted card
 	},
 }
