@@ -26,8 +26,14 @@ async fn main() {
 		if let Some(target) = game.mouse_hit(x, y) {
 			draw_mouse_hit(target);
 			if is_mouse_button_pressed(MouseButton::Left) {
-				let moves = game.calc_moves(target);
-				println!("{:#?}", moves); // TODO
+				if let Some(moves) = game.calc_moves(target) {
+					println!("{:#?}", moves); // TODO
+					if moves.len() == 1 {
+						game.exec_move(target, moves.first().unwrap().clone());
+					}
+				} else {
+					println!("No moves");
+				}
 			}
 		}
 
@@ -300,6 +306,48 @@ impl Game {
 			Some(moves)
 		}
 	}
+
+	pub fn exec_move(&mut self, target:MouseTarget, mv:Move) -> bool {
+		match target {
+			MouseTarget::Stock => {
+				if let Some(card) = self.stock.front().cloned() {
+					match mv {
+						Move::ToPile(pile_index) => {
+							self.stock.pop_front();
+							self.piles[pile_index].visible.push(card);
+							return true
+						}
+						Move::ToFoundation(suit) => {
+							self.stock.pop_front();
+							self.foundation_fill_levels.insert(suit, card.rank);
+							return true
+						}
+					}
+				}
+			}
+			MouseTarget::Foundation(suit) => {
+				match mv {
+					Move::ToPile(pile_index) => {
+						// TODO
+					}
+					Move::ToFoundation(suit) => {
+						// TODO
+					}
+				}
+			}
+			MouseTarget::Pile{pile_index, target_card:card, n_cards, ..} => {
+				match mv {
+					Move::ToPile(pile_index) => {
+						// TODO
+					}
+					Move::ToFoundation(suit) => {
+						// TODO
+					}
+				}
+			}
+		}
+		return false
+	}
 }
 
 #[derive(Copy, Clone)]
@@ -314,7 +362,7 @@ enum MouseTarget {
 	},
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 enum Move {
 	ToPile(usize),
 	ToFoundation(Suit),
@@ -522,7 +570,7 @@ impl Suit {
 	}
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd)]
 enum Rank {
 	Ace,
 	Two,
