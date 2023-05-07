@@ -1,6 +1,6 @@
 use macroquad::prelude::*;
 
-#[macroquad::main("Hello")]
+#[macroquad::main("Solitaire")]
 async fn main() {
 	// seed the RNG
 	let duration_since_epoch = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap();
@@ -21,14 +21,24 @@ async fn main() {
 	}
 }
 
+const INSET: f32 = 30.;
 const CARD_W: f32 = 50.;
 const CARD_H: f32 = 70.;
 const PILE_CARD_OFFSET: f32 = 20.;
 
 fn draw_game(game: &Game) {
+	// draw deck
+	if game.deck.len() > 1 {
+		draw_card(&Card{suit:Suit::Diamonds, rank:Rank::Ace}, INSET, INSET, false);
+	}
+	if !game.deck.is_empty() {
+		draw_card(&game.deck[0], INSET + CARD_W * 1.5, INSET, true);
+	}
+
+	// draw piles
 	for (i, pile) in game.piles[..].into_iter().enumerate() {
-		let x = 30. + i as f32 * CARD_W * 1.5;
-		let y = 30.;
+		let x = INSET + i as f32 * CARD_W * 1.5;
+		let y = CARD_H * 2.;
 		draw_pile(pile, x, y);
 	}
 }
@@ -57,22 +67,24 @@ fn draw_card(c: &Card, x:f32, y:f32, visible:bool) {
 }
 
 struct Game {
+	deck: Vec<Card>,
 	piles: Vec<Pile>,
 }
 
 impl Game {
 	pub fn new() -> Game {
 		let mut game = Game {
+			deck: Vec::new(),
 			piles: Vec::new(),
 		};
 
-		let mut cards = Card::all_cards().to_vec();
-		shuffle(&mut cards);
+		game.deck = Card::all_cards().to_vec();
+		shuffle(&mut game.deck);
 
 		for pile_size in 1..=7 {
 			let mut pile = Pile::new();
 			for i in 0..pile_size {
-				let card = cards.pop().unwrap();
+				let card = game.deck.pop().unwrap();
 				if i == pile_size - 1 {
 					pile.visible.push(card);
 				} else {
