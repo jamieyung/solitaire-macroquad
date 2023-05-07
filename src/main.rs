@@ -1,4 +1,5 @@
 use macroquad::prelude::*;
+use std::collections::HashMap;
 
 #[macroquad::main("Solitaire")]
 async fn main() {
@@ -24,32 +25,50 @@ async fn main() {
 const INSET: f32 = 30.;
 const CARD_W: f32 = 50.;
 const CARD_H: f32 = 70.;
-const PILE_CARD_OFFSET: f32 = 20.;
+const PILE_CARD_V_OFFSET: f32 = 20.;
+const PILE_H_OFFSET: f32 = CARD_W * 1.5;
 
 fn draw_game(game: &Game) {
-	// draw deck
-	if game.deck.len() > 1 {
-		draw_card(&Card{suit:Suit::Diamonds, rank:Rank::Ace}, INSET, INSET, false);
+	// draw stock
+	if game.stock.len() > 1 {
+		draw_card(&Card::new(Suit::Diamonds, Rank::Ace), INSET, INSET, false);
 	}
-	if !game.deck.is_empty() {
-		draw_card(&game.deck[0], INSET + CARD_W * 1.5, INSET, true);
+	if !game.stock.is_empty() {
+		draw_card(&game.stock[0], INSET + PILE_H_OFFSET, INSET, true);
 	}
 
 	// draw piles
 	for (i, pile) in game.piles[..].into_iter().enumerate() {
-		let x = INSET + i as f32 * CARD_W * 1.5;
+		let x = INSET + i as f32 * PILE_H_OFFSET;
 		let y = CARD_H * 2.;
 		draw_pile(pile, x, y);
+	}
+
+	// draw foundations
+	draw_foundation(Suit::Diamonds, game.foundation_fill_levels.get(&Suit::Diamonds), INSET+3.*PILE_H_OFFSET, INSET);
+	draw_foundation(Suit::Clubs, game.foundation_fill_levels.get(&Suit::Clubs), INSET+4.*PILE_H_OFFSET, INSET);
+	draw_foundation(Suit::Hearts, game.foundation_fill_levels.get(&Suit::Hearts), INSET+5.*PILE_H_OFFSET, INSET);
+	draw_foundation(Suit::Spades, game.foundation_fill_levels.get(&Suit::Spades), INSET+6.*PILE_H_OFFSET, INSET);
+}
+
+fn draw_foundation(suit: Suit, rank: Option<&Rank>, x:f32, y:f32) {
+	match rank {
+		Some(r) => {
+			draw_card(&Card::new(suit, r.to_owned()), x, y, true);
+		}
+		None => {
+			draw_rectangle_lines(x, y, CARD_W, CARD_H, 2., BLACK);
+		}
 	}
 }
 
 fn draw_pile(pile: &Pile, x:f32, y:f32) {
 	for (i, card) in pile.hidden[..].into_iter().enumerate() {
-		draw_card(card, x, y + i as f32 * PILE_CARD_OFFSET, false);
+		draw_card(card, x, y + i as f32 * PILE_CARD_V_OFFSET, false);
 	}
 	let n_hidden = pile.hidden.len() as f32;
 	for (i, card) in pile.visible[..].into_iter().enumerate() {
-		draw_card(card, x, y + (i as f32 + n_hidden) * PILE_CARD_OFFSET, true);
+		draw_card(card, x, y + (i as f32 + n_hidden) * PILE_CARD_V_OFFSET, true);
 	}
 }
 
@@ -67,24 +86,26 @@ fn draw_card(c: &Card, x:f32, y:f32, visible:bool) {
 }
 
 struct Game {
-	deck: Vec<Card>,
+	stock: Vec<Card>,
 	piles: Vec<Pile>,
+	foundation_fill_levels: HashMap<Suit, Rank>,
 }
 
 impl Game {
 	pub fn new() -> Game {
 		let mut game = Game {
-			deck: Vec::new(),
+			stock: Vec::new(),
 			piles: Vec::new(),
+			foundation_fill_levels: HashMap::new(),
 		};
 
-		game.deck = Card::all_cards().to_vec();
-		shuffle(&mut game.deck);
+		game.stock = Card::all_cards().to_vec();
+		shuffle(&mut game.stock);
 
 		for pile_size in 1..=7 {
 			let mut pile = Pile::new();
 			for i in 0..pile_size {
-				let card = game.deck.pop().unwrap();
+				let card = game.stock.pop().unwrap();
 				if i == pile_size - 1 {
 					pile.visible.push(card);
 				} else {
@@ -119,6 +140,10 @@ struct Card {
 }
 
 impl Card {
+	pub fn new(suit: Suit, rank: Rank) -> Card {
+		return Card{suit, rank}
+	}
+
 	pub fn card_col(&self) -> Color {
 		return match self.suit {
 			Suit::Diamonds | Suit::Hearts => RED,
@@ -138,7 +163,6 @@ impl Card {
 	pub fn card_rank_letter(&self) -> &str {
 		return match self.rank {
 			Rank::Ace => "A",
-			Rank::One => "1",
 			Rank::Two => "2",
 			Rank::Three => "3",
 			Rank::Four => "4",
@@ -222,7 +246,7 @@ fn shuffle(cards: &mut[Card]) {
 	}
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 enum Suit {
 	Diamonds,
 	Clubs,
@@ -233,7 +257,6 @@ enum Suit {
 #[derive(Clone, Debug)]
 enum Rank {
 	Ace,
-	One,
 	Two,
 	Three,
 	Four,
