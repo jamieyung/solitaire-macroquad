@@ -16,6 +16,8 @@ async fn main() {
 			return;
 		} else if is_key_pressed(KeyCode::Q) {
 			game.cycle_stock();
+		} else if is_key_pressed(KeyCode::R) {
+			game = Game::new();
 		}
 
 		draw_game(&game);
@@ -23,6 +25,10 @@ async fn main() {
 		let (x, y) = mouse_position();
 		if let Some(target) = game.mouse_hit(x, y) {
 			draw_mouse_hit(target);
+			if is_mouse_button_pressed(MouseButton::Left) {
+				let moves = game.calc_moves(target);
+				println!("{:#?}", moves); // TODO
+			}
 		}
 
 		next_frame().await;
@@ -108,9 +114,9 @@ fn draw_card(c: &Card, x:f32, y:f32, visible:bool) {
 	draw_rectangle_lines(x, y, CARD_W, CARD_H, CARD_BORDER_WIDTH, BLACK);
 
 	if visible {
-		let col = c.card_col();
-		draw_text(c.card_rank_letter(), x, y + CARD_FONT_SIZE*0.55, CARD_FONT_SIZE, col);
-		draw_text(c.card_suit_letter(), x+CARD_W*0.7, y + CARD_FONT_SIZE*0.55, CARD_FONT_SIZE, col);
+		let col = c.col();
+		draw_text(c.rank_letter(), x, y + CARD_FONT_SIZE*0.55, CARD_FONT_SIZE, col);
+		draw_text(c.suit_letter(), x+CARD_W*0.7, y + CARD_FONT_SIZE*0.55, CARD_FONT_SIZE, col);
 	} else {
 		draw_rectangle(
 			x+CARD_BACK_WHITE_BORDER_MARGIN, y+CARD_BACK_WHITE_BORDER_MARGIN,
@@ -194,8 +200,40 @@ impl Game {
 
 		return None
 	}
+
+	pub fn calc_moves(&mut self, target:MouseTarget) -> Option<Vec<Move>> {
+		return match target {
+			MouseTarget::Stock => {
+				let card = self.stock.front()?;
+				let mut moves: Vec<Move> = Vec::new();
+				for (i, pile) in self.piles[..].into_iter().enumerate() {
+					if pile.is_empty() && card.rank == Rank::King {
+						// if the pile is empty and the stock card is a king, it's a valid move
+						moves.push(Move::ToPile(i));
+					}
+
+					// if the stock card can go onto the top visible card, it's a valid move
+					else {
+						if let Some(top) = pile.top_card() {
+							if card.can_stack_onto(top) {
+								moves.push(Move::ToPile(i));
+							}
+						}
+					}
+				}
+				if moves.is_empty() {
+					None
+				} else {
+					Some(moves)
+				}
+			}
+			MouseTarget::Foundation(_) => None, // TODO
+			MouseTarget::Pile{..} => None // TODO
+		}
+	}
 }
 
+#[derive(Copy, Clone)]
 enum MouseTarget {
 	Stock,
 	Foundation(Suit),
@@ -206,10 +244,11 @@ enum MouseTarget {
 	},
 }
 
-// enum Move {
-// 	ToPile(u8),
-// 	ToFoundation(Suit),
-// }
+#[derive(Debug)]
+enum Move {
+	ToPile(usize),
+	ToFoundation(Suit),
+}
 
 struct Pile {
 	hidden: Vec<Card>,
@@ -228,9 +267,17 @@ impl Pile {
 	pub fn pile_x(pile_index:usize) -> f32 {
 		return INSET + pile_index as f32 * PILE_H_OFFSET;
 	}
+
+	pub fn is_empty(&self) -> bool {
+		self.hidden.is_empty() && self.visible.is_empty()
+	}
+
+	pub fn top_card(&self) -> Option<Card> {
+		self.visible.as_slice().first().map(|card| *card)
+	}
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 struct Card {
 	suit: Suit,
 	rank: Rank,
@@ -241,14 +288,14 @@ impl Card {
 		return Card{suit, rank}
 	}
 
-	pub fn card_col(&self) -> Color {
+	pub fn col(&self) -> Color {
 		return match self.suit {
 			Suit::Diamonds | Suit::Hearts => RED,
 			Suit::Clubs | Suit::Spades => BLACK,
 		}
 	}
 
-	pub fn card_suit_letter(&self) -> &str {
+	pub fn suit_letter(&self) -> &str {
 		return match self.suit {
 			Suit::Diamonds => "D",
 			Suit::Clubs => "C",
@@ -257,7 +304,7 @@ impl Card {
 		}
 	}
 
-	pub fn card_rank_letter(&self) -> &str {
+	pub fn rank_letter(&self) -> &str {
 		return match self.rank {
 			Rank::Ace => "A",
 			Rank::Two => "2",
@@ -272,6 +319,24 @@ impl Card {
 			Rank::Jack => "J",
 			Rank::Queen => "Q",
 			Rank::King => "K",
+		}
+	}
+
+	pub fn rank_index(&self) -> i8 {
+		return match self.rank {
+			Rank::Ace => 0,
+			Rank::Two => 1,
+			Rank::Three => 2,
+			Rank::Four => 3,
+			Rank::Five => 4,
+			Rank::Six => 5,
+			Rank::Seven => 6,
+			Rank::Eight => 7,
+			Rank::Nine => 8,
+			Rank::Ten => 9,
+			Rank::Jack => 10,
+			Rank::Queen => 11,
+			Rank::King => 12,
 		}
 	}
  
@@ -338,6 +403,11 @@ impl Card {
 		return mx >= cx && mx <= cx+CARD_W
 			&& my >= cy && my <= cy+CARD_H
 	}
+
+	// returns true if self can stack on top of other, eg. if self is 2D and other is 3S.
+	pub fn can_stack_onto(&self, other:Card) -> bool {
+		self.col() != other.col() && other.rank_index() - self.rank_index() == 1
+	}
 }
 
 fn shuffle(cards: &mut[Card]) {
@@ -348,7 +418,7 @@ fn shuffle(cards: &mut[Card]) {
 	}
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Copy)]
 enum Suit {
 	Diamonds,
 	Clubs,
@@ -377,7 +447,7 @@ impl Suit {
 	}
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Rank {
 	Ace,
 	Two,
