@@ -2,23 +2,33 @@ use macroquad::prelude::*;
 
 #[macroquad::main("Hello")]
 async fn main() {
-	let card1 = Card {
+	let mut pile = Pile {
+		cards: Vec::new(),
+	};
+
+	pile.cards.push(Card {
 		suit: Suit::Diamonds,
 		val: Value::Ace,
 		hidden: false,
-	};
+	});
 
-	let card2 = Card {
+	pile.cards.push(Card {
+		suit: Suit::Clubs,
+		val: Value::Six,
+		hidden: false,
+	});
+
+	pile.cards.push(Card {
+		suit: Suit::Hearts,
+		val: Value::Ten,
+		hidden: false,
+	});
+
+	pile.cards.push(Card {
 		suit: Suit::Spades,
 		val: Value::King,
 		hidden: false,
-	};
-
-	let card3 = Card {
-		suit: Suit::Spades,
-		val: Value::King,
-		hidden: true,
-	};
+	});
 
     loop {
 		clear_background(GREEN);
@@ -27,9 +37,7 @@ async fn main() {
 			return;
 		}
 
-		draw_card(&card1, 10., 10.);
-		draw_card(&card2, 200., 50.);
-		draw_card(&card3, 500., 50.);
+		draw_pile(&pile, 10., 10.);
 
 		next_frame().await;
 	}
@@ -37,6 +45,14 @@ async fn main() {
 
 const CARD_W: f32 = 50.;
 const CARD_H: f32 = 70.;
+const PILE_CARD_OFFSET: f32 = 20.;
+
+fn draw_pile(pile: &Pile, x:f32, y:f32) {
+	let s = &pile.cards[..];
+	for (i, card) in s.into_iter().enumerate() {
+		draw_card(card, x, y + (i as f32) * PILE_CARD_OFFSET);
+	}
+}
 
 fn draw_card(c: &Card, x:f32, y:f32) {
 	draw_rectangle(x, y, CARD_W, CARD_H, WHITE);
@@ -84,6 +100,10 @@ fn card_value_letter(c: &Card) -> &str {
 		Value::Queen => "Q",
 		Value::King => "K",
 	}
+}
+
+struct Pile {
+	cards: Vec<Card>
 }
 
 struct Card {
