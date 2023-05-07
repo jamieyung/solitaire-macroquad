@@ -22,10 +22,16 @@ async fn main() {
 	}
 }
 
+const N_PILES: u8 = 7;
 const INSET: f32 = 30.;
-const CARD_W: f32 = 50.;
-const CARD_H: f32 = 70.;
-const PILE_CARD_V_OFFSET: f32 = 20.;
+const FOUNDATIONS_X: f32 = INSET+3.*PILE_H_OFFSET;
+const CARD_W: f32 = 60.;
+const CARD_H: f32 = CARD_W*1.4;
+const CARD_BORDER_WIDTH: f32 = 2.;
+const CARD_FONT_SIZE: f32 = CARD_W*0.6;
+const CARD_BACK_WHITE_BORDER_MARGIN: f32 = 3.;
+const PILES_Y: f32 = CARD_H * 2.;
+const PILE_CARD_V_OFFSET: f32 = CARD_FONT_SIZE*0.6;
 const PILE_H_OFFSET: f32 = CARD_W * 1.5;
 
 fn draw_game(game: &Game) {
@@ -40,15 +46,15 @@ fn draw_game(game: &Game) {
 	// draw piles
 	for (i, pile) in game.piles[..].into_iter().enumerate() {
 		let x = INSET + i as f32 * PILE_H_OFFSET;
-		let y = CARD_H * 2.;
+		let y = PILES_Y;
 		draw_pile(pile, x, y);
 	}
 
 	// draw foundations
-	draw_foundation(Suit::Diamonds, game.foundation_fill_levels.get(&Suit::Diamonds), INSET+3.*PILE_H_OFFSET, INSET);
-	draw_foundation(Suit::Clubs, game.foundation_fill_levels.get(&Suit::Clubs), INSET+4.*PILE_H_OFFSET, INSET);
-	draw_foundation(Suit::Hearts, game.foundation_fill_levels.get(&Suit::Hearts), INSET+5.*PILE_H_OFFSET, INSET);
-	draw_foundation(Suit::Spades, game.foundation_fill_levels.get(&Suit::Spades), INSET+6.*PILE_H_OFFSET, INSET);
+	draw_foundation(Suit::Diamonds, game.foundation_fill_levels.get(&Suit::Diamonds), FOUNDATIONS_X, INSET);
+	draw_foundation(Suit::Clubs, game.foundation_fill_levels.get(&Suit::Clubs), FOUNDATIONS_X+1.*PILE_H_OFFSET, INSET);
+	draw_foundation(Suit::Hearts, game.foundation_fill_levels.get(&Suit::Hearts), FOUNDATIONS_X+2.*PILE_H_OFFSET, INSET);
+	draw_foundation(Suit::Spades, game.foundation_fill_levels.get(&Suit::Spades), FOUNDATIONS_X+3.*PILE_H_OFFSET, INSET);
 }
 
 fn draw_foundation(suit: Suit, rank: Option<&Rank>, x:f32, y:f32) {
@@ -57,7 +63,7 @@ fn draw_foundation(suit: Suit, rank: Option<&Rank>, x:f32, y:f32) {
 			draw_card(&Card::new(suit, r.to_owned()), x, y, true);
 		}
 		None => {
-			draw_rectangle_lines(x, y, CARD_W, CARD_H, 2., BLACK);
+			draw_rectangle_lines(x, y, CARD_W, CARD_H, CARD_BORDER_WIDTH, BLACK);
 		}
 	}
 }
@@ -74,14 +80,16 @@ fn draw_pile(pile: &Pile, x:f32, y:f32) {
 
 fn draw_card(c: &Card, x:f32, y:f32, visible:bool) {
 	draw_rectangle(x, y, CARD_W, CARD_H, WHITE);
-	draw_rectangle_lines(x, y, CARD_W, CARD_H, 2., BLACK);
+	draw_rectangle_lines(x, y, CARD_W, CARD_H, CARD_BORDER_WIDTH, BLACK);
 
 	if visible {
 		let col = c.card_col();
-		draw_text(c.card_rank_letter(), x, y + 17.0, 30.0, col);
-		draw_text(c.card_suit_letter(), x+CARD_W*0.7, y + 17.0, 30.0, col);
+		draw_text(c.card_rank_letter(), x, y + CARD_FONT_SIZE*0.55, CARD_FONT_SIZE, col);
+		draw_text(c.card_suit_letter(), x+CARD_W*0.7, y + CARD_FONT_SIZE*0.55, CARD_FONT_SIZE, col);
 	} else {
-		draw_rectangle(x+3., y+3., CARD_W-6., CARD_H-6., BLUE);
+		draw_rectangle(
+			x+CARD_BACK_WHITE_BORDER_MARGIN, y+CARD_BACK_WHITE_BORDER_MARGIN,
+			CARD_W-2.*CARD_BACK_WHITE_BORDER_MARGIN, CARD_H-2.*CARD_BACK_WHITE_BORDER_MARGIN, BLUE);
 	}
 }
 
@@ -102,7 +110,7 @@ impl Game {
 		game.stock = Card::all_cards().to_vec();
 		shuffle(&mut game.stock);
 
-		for pile_size in 1..=7 {
+		for pile_size in 1..=N_PILES {
 			let mut pile = Pile::new();
 			for i in 0..pile_size {
 				let card = game.stock.pop().unwrap();
