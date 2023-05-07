@@ -9,7 +9,7 @@ async fn main() {
 
 	let mut game = Game::new();
 
-    loop {
+	loop {
 		clear_background(GREEN);
 
 		if is_key_down(KeyCode::Escape) {
@@ -489,65 +489,65 @@ impl Card {
 			Rank::King => 12,
 		}
 	}
- 
+
 	// Returns an array slice containing all the cards in a standard 52-card deck
-    pub fn all_cards() -> &'static [Card] {
-        static CARDS: [Card; 52] = [
-            Card { suit: Suit::Spades, rank: Rank::Two },
-            Card { suit: Suit::Spades, rank: Rank::Three },
-            Card { suit: Suit::Spades, rank: Rank::Four },
-            Card { suit: Suit::Spades, rank: Rank::Five },
-            Card { suit: Suit::Spades, rank: Rank::Six },
-            Card { suit: Suit::Spades, rank: Rank::Seven },
-            Card { suit: Suit::Spades, rank: Rank::Eight },
-            Card { suit: Suit::Spades, rank: Rank::Nine },
-            Card { suit: Suit::Spades, rank: Rank::Ten },
-            Card { suit: Suit::Spades, rank: Rank::Jack },
-            Card { suit: Suit::Spades, rank: Rank::Queen },
-            Card { suit: Suit::Spades, rank: Rank::King },
-            Card { suit: Suit::Spades, rank: Rank::Ace },
-            Card { suit: Suit::Hearts, rank: Rank::Two },
-            Card { suit: Suit::Hearts, rank: Rank::Three },
-            Card { suit: Suit::Hearts, rank: Rank::Four },
-            Card { suit: Suit::Hearts, rank: Rank::Five },
-            Card { suit: Suit::Hearts, rank: Rank::Six },
-            Card { suit: Suit::Hearts, rank: Rank::Seven },
-            Card { suit: Suit::Hearts, rank: Rank::Eight },
-            Card { suit: Suit::Hearts, rank: Rank::Nine },
-            Card { suit: Suit::Hearts, rank: Rank::Ten },
-            Card { suit: Suit::Hearts, rank: Rank::Jack },
-            Card { suit: Suit::Hearts, rank: Rank::Queen },
-            Card { suit: Suit::Hearts, rank: Rank::King },
-            Card { suit: Suit::Hearts, rank: Rank::Ace },
-            Card { suit: Suit::Diamonds, rank: Rank::Two },
-            Card { suit: Suit::Diamonds, rank: Rank::Three },
-            Card { suit: Suit::Diamonds, rank: Rank::Four },
-            Card { suit: Suit::Diamonds, rank: Rank::Five },
-            Card { suit: Suit::Diamonds, rank: Rank::Six },
-            Card { suit: Suit::Diamonds, rank: Rank::Seven },
-            Card { suit: Suit::Diamonds, rank: Rank::Eight },
-            Card { suit: Suit::Diamonds, rank: Rank::Nine },
-            Card { suit: Suit::Diamonds, rank: Rank::Ten },
-            Card { suit: Suit::Diamonds, rank: Rank::Jack },
-            Card { suit: Suit::Diamonds, rank: Rank::Queen },
-            Card { suit: Suit::Diamonds, rank: Rank::King },
-            Card { suit: Suit::Diamonds, rank: Rank::Ace },
-            Card { suit: Suit::Clubs, rank: Rank::Two },
-            Card { suit: Suit::Clubs, rank: Rank::Three },
-            Card { suit: Suit::Clubs, rank: Rank::Four },
-            Card { suit: Suit::Clubs, rank: Rank::Five },
-            Card { suit: Suit::Clubs, rank: Rank::Six },
-            Card { suit: Suit::Clubs, rank: Rank::Seven },
-            Card { suit: Suit::Clubs, rank: Rank::Eight },
-            Card { suit: Suit::Clubs, rank: Rank::Nine },
-            Card { suit: Suit::Clubs, rank: Rank::Ten },
-            Card { suit: Suit::Clubs, rank: Rank::Jack },
-            Card { suit: Suit::Clubs, rank: Rank::Queen },
-            Card { suit: Suit::Clubs, rank: Rank::King },
-            Card { suit: Suit::Clubs, rank: Rank::Ace }
-        ];
-        &CARDS
-    }
+	pub fn all_cards() -> &'static [Card] {
+		static CARDS: [Card; 52] = [
+			Card { suit: Suit::Spades, rank: Rank::Two },
+			Card { suit: Suit::Spades, rank: Rank::Three },
+			Card { suit: Suit::Spades, rank: Rank::Four },
+			Card { suit: Suit::Spades, rank: Rank::Five },
+			Card { suit: Suit::Spades, rank: Rank::Six },
+			Card { suit: Suit::Spades, rank: Rank::Seven },
+			Card { suit: Suit::Spades, rank: Rank::Eight },
+			Card { suit: Suit::Spades, rank: Rank::Nine },
+			Card { suit: Suit::Spades, rank: Rank::Ten },
+			Card { suit: Suit::Spades, rank: Rank::Jack },
+			Card { suit: Suit::Spades, rank: Rank::Queen },
+			Card { suit: Suit::Spades, rank: Rank::King },
+			Card { suit: Suit::Spades, rank: Rank::Ace },
+			Card { suit: Suit::Hearts, rank: Rank::Two },
+			Card { suit: Suit::Hearts, rank: Rank::Three },
+			Card { suit: Suit::Hearts, rank: Rank::Four },
+			Card { suit: Suit::Hearts, rank: Rank::Five },
+			Card { suit: Suit::Hearts, rank: Rank::Six },
+			Card { suit: Suit::Hearts, rank: Rank::Seven },
+			Card { suit: Suit::Hearts, rank: Rank::Eight },
+			Card { suit: Suit::Hearts, rank: Rank::Nine },
+			Card { suit: Suit::Hearts, rank: Rank::Ten },
+			Card { suit: Suit::Hearts, rank: Rank::Jack },
+			Card { suit: Suit::Hearts, rank: Rank::Queen },
+			Card { suit: Suit::Hearts, rank: Rank::King },
+			Card { suit: Suit::Hearts, rank: Rank::Ace },
+			Card { suit: Suit::Diamonds, rank: Rank::Two },
+			Card { suit: Suit::Diamonds, rank: Rank::Three },
+			Card { suit: Suit::Diamonds, rank: Rank::Four },
+			Card { suit: Suit::Diamonds, rank: Rank::Five },
+			Card { suit: Suit::Diamonds, rank: Rank::Six },
+			Card { suit: Suit::Diamonds, rank: Rank::Seven },
+			Card { suit: Suit::Diamonds, rank: Rank::Eight },
+			Card { suit: Suit::Diamonds, rank: Rank::Nine },
+			Card { suit: Suit::Diamonds, rank: Rank::Ten },
+			Card { suit: Suit::Diamonds, rank: Rank::Jack },
+			Card { suit: Suit::Diamonds, rank: Rank::Queen },
+			Card { suit: Suit::Diamonds, rank: Rank::King },
+			Card { suit: Suit::Diamonds, rank: Rank::Ace },
+			Card { suit: Suit::Clubs, rank: Rank::Two },
+			Card { suit: Suit::Clubs, rank: Rank::Three },
+			Card { suit: Suit::Clubs, rank: Rank::Four },
+			Card { suit: Suit::Clubs, rank: Rank::Five },
+			Card { suit: Suit::Clubs, rank: Rank::Six },
+			Card { suit: Suit::Clubs, rank: Rank::Seven },
+			Card { suit: Suit::Clubs, rank: Rank::Eight },
+			Card { suit: Suit::Clubs, rank: Rank::Nine },
+			Card { suit: Suit::Clubs, rank: Rank::Ten },
+			Card { suit: Suit::Clubs, rank: Rank::Jack },
+			Card { suit: Suit::Clubs, rank: Rank::Queen },
+			Card { suit: Suit::Clubs, rank: Rank::King },
+			Card { suit: Suit::Clubs, rank: Rank::Ace }
+		];
+		&CARDS
+	}
 
 	pub fn mouse_hit(cx:f32, cy:f32, mx:f32, my:f32) -> bool {
 		return mx >= cx && mx <= cx+CARD_W
@@ -583,13 +583,13 @@ enum Suit {
 
 impl Suit {
 	pub fn all() -> &'static [Suit] {
-        static SUITS: [Suit; 4] = [
-            Suit::Diamonds,
-            Suit::Clubs,
-            Suit::Hearts,
-            Suit::Spades,
-        ];
-        &SUITS
+		static SUITS: [Suit; 4] = [
+			Suit::Diamonds,
+			Suit::Clubs,
+			Suit::Hearts,
+			Suit::Spades,
+		];
+		&SUITS
 	}
 
 	pub fn foundation_offset(&self) -> f32 {
