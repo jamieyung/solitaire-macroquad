@@ -2,6 +2,10 @@ use macroquad::prelude::*;
 
 #[macroquad::main("Hello")]
 async fn main() {
+	// seed the RNG
+	let duration_since_epoch = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap();
+	rand::srand(duration_since_epoch.as_secs());
+
 	let game = Game::new();
 
     loop {
@@ -62,6 +66,11 @@ impl Game {
 			piles: Vec::new(),
 		};
 
+		let mut cards = Card::all_cards().to_vec();
+		shuffle(&mut cards);
+
+		print!("{:#?}", cards);
+
 		let mut pile = Pile {
 			hidden: Vec::new(),
 			visible: Vec::new(),
@@ -98,6 +107,16 @@ struct Pile {
 	visible: Vec<Card>,
 }
 
+impl Pile {
+	pub fn new() -> Pile {
+		return Pile {
+			hidden: Vec::new(),
+			visible: Vec::new(),
+		};
+	}
+}
+
+#[derive(Clone, Debug)]
 struct Card {
 	suit: Suit,
 	rank: Rank,
@@ -138,6 +157,65 @@ impl Card {
 			Rank::King => "K",
 		}
 	}
+ 
+	/// Returns an array slice containing all the cards in a standard 52-card deck
+    pub fn all_cards() -> &'static [Card] {
+        static CARDS: [Card; 52] = [
+            Card { suit: Suit::Spades, rank: Rank::Two },
+            Card { suit: Suit::Spades, rank: Rank::Three },
+            Card { suit: Suit::Spades, rank: Rank::Four },
+            Card { suit: Suit::Spades, rank: Rank::Five },
+            Card { suit: Suit::Spades, rank: Rank::Six },
+            Card { suit: Suit::Spades, rank: Rank::Seven },
+            Card { suit: Suit::Spades, rank: Rank::Eight },
+            Card { suit: Suit::Spades, rank: Rank::Nine },
+            Card { suit: Suit::Spades, rank: Rank::Ten },
+            Card { suit: Suit::Spades, rank: Rank::Jack },
+            Card { suit: Suit::Spades, rank: Rank::Queen },
+            Card { suit: Suit::Spades, rank: Rank::King },
+            Card { suit: Suit::Spades, rank: Rank::Ace },
+            Card { suit: Suit::Hearts, rank: Rank::Two },
+            Card { suit: Suit::Hearts, rank: Rank::Three },
+            Card { suit: Suit::Hearts, rank: Rank::Four },
+            Card { suit: Suit::Hearts, rank: Rank::Five },
+            Card { suit: Suit::Hearts, rank: Rank::Six },
+            Card { suit: Suit::Hearts, rank: Rank::Seven },
+            Card { suit: Suit::Hearts, rank: Rank::Eight },
+            Card { suit: Suit::Hearts, rank: Rank::Nine },
+            Card { suit: Suit::Hearts, rank: Rank::Ten },
+            Card { suit: Suit::Hearts, rank: Rank::Jack },
+            Card { suit: Suit::Hearts, rank: Rank::Queen },
+            Card { suit: Suit::Hearts, rank: Rank::King },
+            Card { suit: Suit::Hearts, rank: Rank::Ace },
+            Card { suit: Suit::Diamonds, rank: Rank::Two },
+            Card { suit: Suit::Diamonds, rank: Rank::Three },
+            Card { suit: Suit::Diamonds, rank: Rank::Four },
+            Card { suit: Suit::Diamonds, rank: Rank::Five },
+            Card { suit: Suit::Diamonds, rank: Rank::Six },
+            Card { suit: Suit::Diamonds, rank: Rank::Seven },
+            Card { suit: Suit::Diamonds, rank: Rank::Eight },
+            Card { suit: Suit::Diamonds, rank: Rank::Nine },
+            Card { suit: Suit::Diamonds, rank: Rank::Ten },
+            Card { suit: Suit::Diamonds, rank: Rank::Jack },
+            Card { suit: Suit::Diamonds, rank: Rank::Queen },
+            Card { suit: Suit::Diamonds, rank: Rank::King },
+            Card { suit: Suit::Diamonds, rank: Rank::Ace },
+            Card { suit: Suit::Clubs, rank: Rank::Two },
+            Card { suit: Suit::Clubs, rank: Rank::Three },
+            Card { suit: Suit::Clubs, rank: Rank::Four },
+            Card { suit: Suit::Clubs, rank: Rank::Five },
+            Card { suit: Suit::Clubs, rank: Rank::Six },
+            Card { suit: Suit::Clubs, rank: Rank::Seven },
+            Card { suit: Suit::Clubs, rank: Rank::Eight },
+            Card { suit: Suit::Clubs, rank: Rank::Nine },
+            Card { suit: Suit::Clubs, rank: Rank::Ten },
+            Card { suit: Suit::Clubs, rank: Rank::Jack },
+            Card { suit: Suit::Clubs, rank: Rank::Queen },
+            Card { suit: Suit::Clubs, rank: Rank::King },
+            Card { suit: Suit::Clubs, rank: Rank::Ace }
+        ];
+        &CARDS
+    }
 }
 
 fn shuffle(cards: &mut[Card]) {
@@ -148,6 +226,7 @@ fn shuffle(cards: &mut[Card]) {
 	}
 }
 
+#[derive(Clone, Debug)]
 enum Suit {
 	Diamonds,
 	Clubs,
@@ -155,6 +234,7 @@ enum Suit {
 	Spades,
 }
 
+#[derive(Clone, Debug)]
 enum Rank {
 	Ace,
 	One,
