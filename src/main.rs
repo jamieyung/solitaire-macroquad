@@ -391,7 +391,7 @@ impl Pile {
 	}
 
 	pub fn top_card(&self) -> Option<Card> {
-		self.visible.as_slice().first().map(|card| *card)
+		self.visible.as_slice().last().map(|card| *card)
 	}
 }
 
