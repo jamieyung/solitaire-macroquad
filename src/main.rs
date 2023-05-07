@@ -24,20 +24,27 @@ async fn main() {
 
 		draw_game(&game);
 
-		let (x, y) = mouse_position();
-		if let Some(target) = game.mouse_hit(x, y) {
+		let (mx, my) = mouse_position();
+		if let Some(target) = game.mouse_hit(mx, my) {
 			draw_mouse_hit(target);
 			if is_mouse_button_pressed(MouseButton::Left) {
 				println!("target: {:?}", target);
-				if let MouseTarget::StockDeck = target {
-					game.cycle_stock();
-				} else if let Some(moves) = game.calc_moves(target) {
-					println!("moves: {:?}", moves);
-					if moves.len() == 1 {
-						game.exec_move(target, moves.first().unwrap().clone());
-					}
+				if let Some(_) = game.move_in_progress {
+					game.exec_move_in_progress(target);
 				} else {
-					println!("No moves");
+					game.move_in_progress = None;
+					if let MouseTarget::StockDeck = target {
+						game.cycle_stock();
+					} else if let Some(moves) = game.calc_moves(target) {
+						println!("moves: {:?}", moves);
+						if moves.len() == 1 {
+							game.exec_move(target, moves.first().unwrap().clone());
+						} else {
+							game.move_in_progress = Some(MoveInProgress{ target, moves });
+						}
+					} else {
+						println!("No moves");
+					}
 				}
 			}
 		}
@@ -100,6 +107,11 @@ fn draw_game(game: &Game) {
 	for suit in Suit::all() {
 		draw_foundation(suit.clone(), game.foundation_fill_levels.get(&suit), FOUNDATIONS_X+suit.foundation_offset()*PILE_H_OFFSET, INSET);
 	}
+
+	// draw move_in_progress
+	if let Some(mip) = &game.move_in_progress {
+		draw_mouse_hit(mip.target);
+	}
 }
 
 fn draw_foundation(suit: Suit, rank: Option<&Rank>, x:f32, y:f32) {
@@ -142,6 +154,7 @@ struct Game {
 	stock: VecDeque<Card>,
 	piles: Vec<Pile>,
 	foundation_fill_levels: HashMap<Suit, Rank>,
+	move_in_progress: Option<MoveInProgress>,
 }
 
 impl Game {
@@ -153,6 +166,7 @@ impl Game {
 			stock: VecDeque::from(cards),
 			piles: Vec::new(),
 			foundation_fill_levels: HashMap::new(),
+			move_in_progress: None,
 		};
 
 		for pile_size in 1..=N_PILES {
@@ -262,7 +276,7 @@ impl Game {
 					}
 				}
 			}
-			MouseTarget::StockDeck => {}
+			MouseTarget::StockDeck => {} // impossible
 			MouseTarget::Foundation(suit) => {
 				let card = self.foundation_top_card(suit)?;
 
@@ -336,15 +350,13 @@ impl Game {
 					return true
 				}
 			}
-			MouseTarget::StockDeck => {}
+			MouseTarget::StockDeck => {} // impossible
 			MouseTarget::Foundation(suit) => {
 				match mv {
 					Move::ToPile(pile_index) => {
 						// TODO
 					}
-					Move::ToFoundation(suit) => {
-						// TODO
-					}
+					Move::ToFoundation(_) => {} // impossible
 				}
 			}
 			MouseTarget::Pile{pile_index, target_card:top_card, target_card_index, ..} => {
@@ -371,11 +383,50 @@ impl Game {
 		return false
 	}
 
+	pub fn exec_move_in_progress(&mut self, target:MouseTarget) {
+		if let Some(mip) = &self.move_in_progress {
+			for mv in mip.moves.to_owned() {
+				match mv {
+					Move::ToPile(mip_pile_index) => {
+						match target {
+							MouseTarget::StockTop => {} // impossible
+							MouseTarget::StockDeck => {} // impossible
+							MouseTarget::Foundation(_) => {} // not relevant for this move in progress
+							MouseTarget::Pile{pile_index:target_pile_index, ..} => {
+								if mip_pile_index == target_pile_index {
+									self.exec_move(mip.target, mv);
+									self.move_in_progress = None;
+									return
+								}
+							}
+						}
+					}
+					Move::ToFoundation(mip_suit) => {
+						match target {
+							MouseTarget::StockTop => {} // impossible
+							MouseTarget::StockDeck => {} // impossible
+							MouseTarget::Foundation(target_suit) => {
+								if mip_suit == target_suit {
+									self.exec_move(mip.target, mv);
+									self.move_in_progress = None;
+									return
+								}
+							}
+							MouseTarget::Pile{..} => {} // not relevant for this move in progress
+						}
+					}
+				}
+			}
+		}
+	}
+
 	pub fn debug(&self) {
+		// TODO change this into a succinct Display, eg. print cards out as 2 chars
 		println!("stock: {:?}", self.stock);
 		println!("stock top: {:?}", self.stock.front());
 		println!("piles: {:?}", self.piles);
 		println!("foundations: {:?}", self.foundation_fill_levels);
+		println!("move_in_progress: {:?}", self.move_in_progress);
 	}
 }
 
@@ -391,6 +442,12 @@ enum MouseTarget {
 		target_card_index:usize, // the index into visible of the targeted card
 		top:f32, // the y-coord of the top of the targeted card
 	},
+}
+
+#[derive(Clone, Debug)]
+struct MoveInProgress {
+	target: MouseTarget,
+	moves: Vec<Move>,
 }
 
 #[derive(Clone, Debug)]
