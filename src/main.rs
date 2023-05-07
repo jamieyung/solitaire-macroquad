@@ -9,6 +9,8 @@ async fn main() {
     textures.insert(Suit::Hearts, load_texture("textures/hearts.png").await.unwrap());
     textures.insert(Suit::Spades, load_texture("textures/spades.png").await.unwrap());
 
+	request_new_screen_size(SCREEN_W, SCREEN_H);
+
 	// seed the RNG
 	let duration_since_epoch = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap();
 	rand::srand(duration_since_epoch.as_secs());
@@ -59,10 +61,12 @@ async fn main() {
 	}
 }
 
+const SCREEN_W: f32 = 1200.;
+const SCREEN_H: f32 = 1000.;
 const N_PILES: u8 = 7; // number of piles
 const INSET: f32 = 30.; // distance from edge of screen to the cards
 const FOUNDATIONS_X: f32 = INSET+3.*PILE_H_OFFSET; // the leftmost x-coord of the foundation piles
-const CARD_W: f32 = 60.; // card width
+const CARD_W: f32 = 100.; // card width
 const CARD_H: f32 = CARD_W*1.4; // card height
 const CARD_BORDER_WIDTH: f32 = 2.; // width of the black border around the cards
 const CARD_FONT_SIZE: f32 = CARD_W*0.6; // card font size
@@ -73,8 +77,8 @@ const CARD_BACK_COLOUR: Color = BLUE; // colour on the back of the cards
 const PILES_Y: f32 = CARD_H * 2.; // the topmost y-coord of the piles area
 const PILE_CARD_V_OFFSET: f32 = CARD_FONT_SIZE*0.6; // vertical distance between cards in a pile
 const PILE_H_OFFSET: f32 = CARD_W * 1.5; // horizontal distance between the left edge of adjacent piles
-const MOUSE_TARGET_COLOUR: Color = Color::new(1.00, 0.00, 1.00, 0.2);
-const MOVE_IN_PROGRESS_COLOUR: Color = Color::new(0.00, 1.00, 1.00, 0.3);
+const MOUSE_TARGET_COLOUR: Color = Color::new(1.00, 0.00, 1.00, 0.1);
+const MOVE_IN_PROGRESS_COLOUR: Color = Color::new(0.00, 1.00, 1.00, 0.5);
 
 fn draw_mouse_hit(target: MouseTarget, col:Color) {
 	match target {
