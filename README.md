@@ -1,4 +1,4 @@
-# Solitaire-macroquad
+# Overview
 
 A [solitaire/klondike](https://en.wikipedia.org/wiki/Klondike_(solitaire)) clone written in Rust using the [macroquad](https://github.com/not-fl3/macroquad) 2D graphics library.
 
@@ -9,7 +9,7 @@ Built entirely for fun!
 # Running the game
 
 1. Clone this repository
-2. `cargo run`
+2. `cargo run` (this assumes you have Rust set up on your machine)
 
 # How to play
 
