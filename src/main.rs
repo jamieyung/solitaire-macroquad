@@ -525,11 +525,11 @@ impl Game {
 
 #[derive(Copy, Clone, Debug)]
 enum MouseTarget {
-	StockTop, // the visible card
+	StockTop, // the visible card of the stock
 	StockDeck, // the rest of the stock
-	Foundation(Suit),
-	EmptyPile(usize),
-	PileCard{
+	Foundation(Suit), // one of the foundation piles
+	EmptyPile(usize), // an empty pile (valid target if moving a King to an empty space)
+	PileCard{ // a particular card in a pile
 		pile_index:usize, // 0 is the leftmost pile
 		n_cards:u8, // 1 = only the top card, 2 = two top cards, etc
 		target_card:Card, // the card that was targeted
