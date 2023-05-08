@@ -402,7 +402,15 @@ impl Game {
 			MouseTarget::Foundation(suit) => {
 				match mv {
 					Move::ToPile(pile_index) => {
-						// TODO
+						if let Some(top_card) = self.foundation_top_card(suit) {
+							if let Some(pred) = top_card.rank.pred() {
+								self.foundation_fill_levels.insert(suit, pred);
+							} else {
+								self.foundation_fill_levels.remove(&suit);
+							}
+							self.piles[pile_index].visible.push(top_card);
+							return true
+						}
 					}
 					Move::ToFoundation(_) => {} // impossible
 				}
@@ -718,6 +726,25 @@ enum Rank {
 }
 
 impl Rank {
+	pub fn from_index(i: i8) -> Option<Rank> {
+		return match i {
+			0 => Some(Rank::Ace),
+			1 => Some(Rank::Two),
+			2 => Some(Rank::Three),
+			3 => Some(Rank::Four),
+			4 => Some(Rank::Five),
+			5 => Some(Rank::Six),
+			6 => Some(Rank::Seven),
+			7 => Some(Rank::Eight),
+			8 => Some(Rank::Nine),
+			9 => Some(Rank::Ten),
+			10 => Some(Rank::Jack),
+			11 => Some(Rank::Queen),
+			12 => Some(Rank::King),
+			_ => None
+		}
+	}
+
 	pub fn letter(&self) -> &str {
 		return match self {
 			Rank::Ace => "A",
@@ -752,5 +779,12 @@ impl Rank {
 			Rank::Queen => 11,
 			Rank::King => 12,
 		}
+	}
+
+	// returns the predecessor of the current rank.
+	// eg. pred(King) == Some(Queen), pred(Ace) = None.
+	pub fn pred(&self) -> Option<Rank> {
+		let prev_index = self.index() - 1;
+		Rank::from_index(prev_index)
 	}
 }
