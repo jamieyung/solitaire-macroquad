@@ -13,7 +13,7 @@ Built entirely for fun!
 
 # How to play
 
-Familiarity with the rules of Solitaire are assumed.
+Familiarity with the rules of [Solitaire](https://en.wikipedia.org/wiki/Klondike_(solitaire)) is assumed.
 
 - Click on a card to move it.
   - If there's only one valid move, it will be automatically made.
