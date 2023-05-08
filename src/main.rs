@@ -690,15 +690,6 @@ impl Suit {
 		&SUITS
 	}
 
-	pub fn letter(&self) -> &str {
-		return match self {
-			Suit::Diamonds => "D",
-			Suit::Clubs => "C",
-			Suit::Hearts => "H",
-			Suit::Spades => "S",
-		}
-	}
-
 	pub fn foundation_offset(&self) -> f32 {
 		return match self {
 			Suit::Diamonds => 0.,
