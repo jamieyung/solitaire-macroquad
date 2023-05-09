@@ -48,7 +48,7 @@ async fn main() {
 					} else if let Some(moves) = game.calc_moves(target) {
 						println!("moves: {:?}", moves);
 						if moves.len() == 1 {
-							game.exec_move(target, moves.first().unwrap().clone());
+							game.exec_move(moves.first().unwrap().clone());
 						} else {
 							game.move_in_progress = Some(MoveInProgress{ target, moves });
 						}
@@ -290,14 +290,22 @@ impl Game {
 				let card = self.stock.front()?;
 
 				if card.rank == Rank::Ace {
-					moves.push(Move::ToFoundation(card.suit))
+					moves.push(Move {
+						card: *card,
+						src: MoveSrc::FromStock,
+						dest: MoveDest::ToFoundation(card.suit),
+					})
 				}
 
 				// consider moves to the foundation
 				for suit in Suit::all() {
 					if let Some(top) = self.foundation_top_card(*suit) {
 						if card.can_stack_onto_in_foundation(top) {
-							moves.push(Move::ToFoundation(*suit));
+							moves.push(Move {
+								card: *card,
+								src: MoveSrc::FromStock,
+								dest: MoveDest::ToFoundation(card.suit),
+							});
 							break;
 						}
 					}
@@ -308,13 +316,21 @@ impl Game {
 					// if the card can go onto the top visible card, it's a valid move
 					if let Some(top) = pile.top_card() {
 						if card.can_pile_onto(top) {
-							moves.push(Move::ToPile(i));
+							moves.push(Move {
+								card: *card,
+								src: MoveSrc::FromStock,
+								dest: MoveDest::ToPile(i),
+							});
 						}
 					}
 
 					else if pile.is_empty() && card.rank == Rank::King {
 						// if the pile is empty and the card is a king, it's a valid move
-						moves.push(Move::ToPile(i));
+						moves.push(Move {
+							card: *card,
+							src: MoveSrc::FromStock,
+							dest: MoveDest::ToPile(i),
+						});
 					}
 				}
 			}
@@ -327,15 +343,23 @@ impl Game {
 					// if the card can go onto the top visible card, it's a valid move
 					if let Some(top) = pile.top_card() {
 						if card.can_pile_onto(top) {
-							moves.push(Move::ToPile(i));
+							moves.push(Move {
+								card,
+								src: MoveSrc::FromFoundation(suit),
+								dest: MoveDest::ToPile(i),
+							});
 						}
 					}
 				}
 			}
 			MouseTarget::EmptyPile(_) => {} // impossible
-			MouseTarget::PileCard{pile_index, target_card:card, n_cards, ..} => {
+			MouseTarget::PileCard{pile_index, target_card:card, target_card_index, n_cards, ..} => {
 				if card.rank == Rank::Ace {
-					moves.push(Move::ToFoundation(card.suit))
+					moves.push(Move {
+						card,
+						src: MoveSrc::FromPile{ pile_index, target_card_index },
+						dest: MoveDest::ToFoundation(card.suit),
+					});
 				}
 
 				// consider moves to the foundation (iff it's a single card being targeted)
@@ -343,7 +367,11 @@ impl Game {
 					for suit in Suit::all() {
 						if let Some(top) = self.foundation_top_card(*suit) {
 							if card.can_stack_onto_in_foundation(top) {
-								moves.push(Move::ToFoundation(*suit));
+								moves.push(Move {
+									card,
+									src: MoveSrc::FromPile{ pile_index, target_card_index },
+									dest: MoveDest::ToFoundation(*suit),
+								});
 								break;
 							}
 						}
@@ -357,13 +385,21 @@ impl Game {
 					// if the card can go onto the top visible card, it's a valid move
 					if let Some(top) = pile.top_card() {
 						if card.can_pile_onto(top) {
-							moves.push(Move::ToPile(i));
+							moves.push(Move {
+								card,
+								src: MoveSrc::FromPile{ pile_index, target_card_index },
+								dest: MoveDest::ToPile(i),
+							});
 						}
 					}
 
 					else if pile.is_empty() && card.rank == Rank::King {
 						// if the pile is empty and the card is a king, it's a valid move
-						moves.push(Move::ToPile(i));
+						moves.push(Move {
+							card,
+							src: MoveSrc::FromPile{ pile_index, target_card_index },
+							dest: MoveDest::ToPile(i),
+						});
 					}
 				}
 			}
@@ -376,16 +412,16 @@ impl Game {
 		}
 	}
 
-	pub fn exec_move(&mut self, target:MouseTarget, mv:Move) -> bool {
-		match target {
-			MouseTarget::StockTop => {
+	pub fn exec_move(&mut self, mv:Move) -> bool {
+		match mv.src {
+			MoveSrc::FromStock => {
 				if let Some(card) = self.stock.front().cloned() {
 					self.stock.pop_front();
-					match mv {
-						Move::ToPile(pile_index) => {
+					match mv.dest {
+						MoveDest::ToPile(pile_index) => {
 							self.piles[pile_index].visible.push(card);
 						}
-						Move::ToFoundation(suit) => {
+						MoveDest::ToFoundation(suit) => {
 							self.foundation_fill_levels.insert(suit, card.rank);
 						}
 					}
@@ -398,25 +434,18 @@ impl Game {
 					return true
 				}
 			}
-			MouseTarget::StockDeck => {} // impossible
-			MouseTarget::Foundation(suit) => {
-				match mv {
-					Move::ToPile(pile_index) => {
-						if let Some(top_card) = self.foundation_top_card(suit) {
-							if let Some(pred) = top_card.rank.pred() {
-								self.foundation_fill_levels.insert(suit, pred);
-							} else {
-								self.foundation_fill_levels.remove(&suit);
-							}
+			MoveSrc::FromFoundation(suit) => {
+				match mv.dest {
+					MoveDest::ToPile(pile_index) => {
+						if let Some(top_card) = self.pop_foundation(suit) {
 							self.piles[pile_index].visible.push(top_card);
 							return true
 						}
 					}
-					Move::ToFoundation(_) => {} // impossible
+					MoveDest::ToFoundation(_) => {} // impossible
 				}
 			}
-			MouseTarget::EmptyPile(_) => {} // impossible
-			MouseTarget::PileCard{pile_index, target_card:top_card, target_card_index, ..} => {
+			MoveSrc::FromPile{ pile_index, target_card_index } => {
 				let pile = &mut self.piles[pile_index];
 				let removed:Vec<Card> = pile.visible.drain(target_card_index..).collect();
 				if pile.visible.is_empty() {
@@ -424,14 +453,14 @@ impl Game {
 						pile.visible.push(next);
 					}
 				}
-				match mv {
-					Move::ToPile(dest_pile_index) => {
+				match mv.dest {
+					MoveDest::ToPile(dest_pile_index) => {
 						for card in removed {
 							self.piles[dest_pile_index].visible.push(card);
 						}
 					}
-					Move::ToFoundation(suit) => {
-						self.foundation_fill_levels.insert(suit, top_card.rank);
+					MoveDest::ToFoundation(suit) => {
+						self.foundation_fill_levels.insert(suit, mv.card.rank);
 					}
 				}
 				return true
@@ -443,35 +472,35 @@ impl Game {
 	pub fn exec_move_in_progress(&mut self, target:MouseTarget) {
 		if let Some(mip) = &self.move_in_progress {
 			for mv in mip.moves.to_owned() {
-				match mv {
-					Move::ToPile(mip_pile_index) => {
+				match mv.dest {
+					MoveDest::ToPile(mip_pile_index) => {
 						match target {
 							MouseTarget::StockTop => {} // impossible
 							MouseTarget::StockDeck => {} // impossible
 							MouseTarget::Foundation(_) => {} // not relevant for this move in progress
 							MouseTarget::EmptyPile(target_pile_index) => {
 								if mip_pile_index == target_pile_index {
-									self.exec_move(mip.target, mv);
+									self.exec_move(mv);
 									self.move_in_progress = None;
 									return
 								}
 							}
 							MouseTarget::PileCard{pile_index:target_pile_index, ..} => {
 								if mip_pile_index == target_pile_index {
-									self.exec_move(mip.target, mv);
+									self.exec_move(mv);
 									self.move_in_progress = None;
 									return
 								}
 							}
 						}
 					}
-					Move::ToFoundation(mip_suit) => {
+					MoveDest::ToFoundation(mip_suit) => {
 						match target {
 							MouseTarget::StockTop => {} // impossible
 							MouseTarget::StockDeck => {} // impossible
 							MouseTarget::Foundation(target_suit) => {
 								if mip_suit == target_suit {
-									self.exec_move(mip.target, mv);
+									self.exec_move(mv);
 									self.move_in_progress = None;
 									return
 								}
@@ -487,10 +516,22 @@ impl Game {
 		self.move_in_progress = None;
 	}
 
+	// pops the top card off the given foundation.
+	// returns None if the foundation is empty.
+	pub fn pop_foundation(&mut self, suit:Suit) -> Option<Card> {
+		let top_card = self.foundation_top_card(suit)?;
+		if let Some(pred) = top_card.rank.pred() {
+			self.foundation_fill_levels.insert(suit, pred);
+		} else {
+			self.foundation_fill_levels.remove(&suit);
+		}
+		Some(top_card)
+	}
+
 	pub fn auto_move(&mut self) {
 		if let Some(moves) = self.calc_moves(MouseTarget::StockTop) {
 			let mv = moves.as_slice().first().unwrap().to_owned();
-			self.exec_move(MouseTarget::StockTop, mv);
+			self.exec_move(mv);
 			return;
 		}
 
@@ -506,7 +547,7 @@ impl Game {
 				};
 				if let Some(moves) = self.calc_moves(target) {
 					let mv = moves.as_slice().first().unwrap().to_owned();
-					self.exec_move(target, mv);
+					self.exec_move(mv);
 					return;
 				}
 			}
@@ -545,7 +586,24 @@ struct MoveInProgress {
 }
 
 #[derive(Clone, Debug)]
-enum Move {
+struct Move {
+	card: Card,
+	src: MoveSrc,
+	dest: MoveDest,
+}
+
+#[derive(Clone, Debug)]
+enum MoveSrc {
+	FromStock,
+	FromFoundation(Suit),
+	FromPile{
+		pile_index:usize, // 0 is the leftmost pile
+		target_card_index:usize, // the index into visible of the targeted card
+	},
+}
+
+#[derive(Clone, Debug)]
+enum MoveDest {
 	ToPile(usize),
 	ToFoundation(Suit),
 }
