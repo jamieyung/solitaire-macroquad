@@ -47,9 +47,18 @@ async fn main() {
 					game.move_in_progress = None;
 					if let Some(moves) = game.calc_moves(target) {
 						println!("moves: {:?}", moves);
+
 						if moves.len() == 1 {
-							game.exec_move(moves.first().unwrap().clone());
-						} else {
+							game.exec_move(moves[0]);
+						}
+
+						// if there's a move to a foundation, do it
+						else if let mv@Move::CardMove{ dest: MoveDest::ToFoundation(..), .. } = moves[0] {
+							game.exec_move(mv);
+						}
+
+						else {
+							// TODO if the only legal moves are from stock to piles, just pick one
 							game.move_in_progress = Some(MoveInProgress{ target, moves });
 						}
 					} else {
