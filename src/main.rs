@@ -59,7 +59,18 @@ async fn main() {
 
 						else {
 							// TODO if the only legal moves are from stock to piles, just pick one
-							game.move_in_progress = Some(MoveInProgress{ target, moves });
+							let moves_all_from_stock_to_piles = moves.clone().into_iter().fold(true, |z, mv| {
+								z && match mv {
+									Move::CardMove{ src: MoveSrc::FromStock, dest: MoveDest::ToPile(..), .. } => true,
+									_ => false
+								}
+							});
+							if moves_all_from_stock_to_piles {
+								game.exec_move(moves[0]);
+							} else {
+								game.move_in_progress = Some(MoveInProgress{ target, moves });
+							}
+
 						}
 					} else {
 						println!("No moves");
