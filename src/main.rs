@@ -23,11 +23,13 @@ async fn main() {
 		if is_key_down(KeyCode::Escape) {
 			return;
 		} else if is_key_pressed(KeyCode::Space) {
-			game.cycle_stock();
+			game.exec_move(Move::CycleStock);
 		} else if is_key_pressed(KeyCode::R) {
 			game = Game::new();
 		} else if is_key_pressed(KeyCode::D) {
 			game.debug();
+		} else if is_key_pressed(KeyCode::U) {
+			game.undo_move();
 		} else if is_key_pressed(KeyCode::A) {
 			game.auto_move();
 		}
@@ -43,9 +45,7 @@ async fn main() {
 					game.exec_move_in_progress(target);
 				} else {
 					game.move_in_progress = None;
-					if let MouseTarget::StockDeck = target {
-						game.cycle_stock();
-					} else if let Some(moves) = game.calc_moves(target) {
+					if let Some(moves) = game.calc_moves(target) {
 						println!("moves: {:?}", moves);
 						if moves.len() == 1 {
 							game.exec_move(moves.first().unwrap().clone());
@@ -193,6 +193,7 @@ struct Game {
 	piles: Vec<Pile>,
 	foundation_fill_levels: HashMap<Suit, Rank>,
 	move_in_progress: Option<MoveInProgress>,
+	move_history: Vec<Move>,
 }
 
 impl Game {
@@ -205,6 +206,7 @@ impl Game {
 			piles: Vec::new(),
 			foundation_fill_levels: HashMap::new(),
 			move_in_progress: None,
+			move_history: Vec::new(),
 		};
 
 		for pile_size in 1..=N_PILES {
@@ -221,16 +223,6 @@ impl Game {
 		}
 
 		return game;
-	}
-
-	// does nothing if the stock has fewer than 2 cards
-	pub fn cycle_stock(&mut self) {
-		self.move_in_progress = None;
-		if self.stock.len() < 2 {
-			return
-		}
-		let card = self.stock.pop_front().unwrap();
-		self.stock.push_back(card);
 	}
 
 	pub fn mouse_hit(&self, mx:f32, my:f32) -> Option<MouseTarget> {
@@ -290,7 +282,7 @@ impl Game {
 				let card = self.stock.front()?;
 
 				if card.rank == Rank::Ace {
-					moves.push(Move {
+					moves.push(Move::CardMove{
 						card: *card,
 						src: MoveSrc::FromStock,
 						dest: MoveDest::ToFoundation(card.suit),
@@ -301,7 +293,7 @@ impl Game {
 				for suit in Suit::all() {
 					if let Some(top) = self.foundation_top_card(*suit) {
 						if card.can_stack_onto_in_foundation(top) {
-							moves.push(Move {
+							moves.push(Move::CardMove{
 								card: *card,
 								src: MoveSrc::FromStock,
 								dest: MoveDest::ToFoundation(card.suit),
@@ -316,7 +308,7 @@ impl Game {
 					// if the card can go onto the top visible card, it's a valid move
 					if let Some(top) = pile.top_card() {
 						if card.can_pile_onto(top) {
-							moves.push(Move {
+							moves.push(Move::CardMove{
 								card: *card,
 								src: MoveSrc::FromStock,
 								dest: MoveDest::ToPile(i),
@@ -326,7 +318,7 @@ impl Game {
 
 					else if pile.is_empty() && card.rank == Rank::King {
 						// if the pile is empty and the card is a king, it's a valid move
-						moves.push(Move {
+						moves.push(Move::CardMove{
 							card: *card,
 							src: MoveSrc::FromStock,
 							dest: MoveDest::ToPile(i),
@@ -334,7 +326,11 @@ impl Game {
 					}
 				}
 			}
-			MouseTarget::StockDeck => {} // impossible
+			MouseTarget::StockDeck => {
+				if self.stock.len() > 1 {
+					moves.push(Move::CycleStock);
+				}
+			}
 			MouseTarget::Foundation(suit) => {
 				let card = self.foundation_top_card(suit)?;
 
@@ -343,7 +339,7 @@ impl Game {
 					// if the card can go onto the top visible card, it's a valid move
 					if let Some(top) = pile.top_card() {
 						if card.can_pile_onto(top) {
-							moves.push(Move {
+							moves.push(Move::CardMove{
 								card,
 								src: MoveSrc::FromFoundation(suit),
 								dest: MoveDest::ToPile(i),
@@ -355,9 +351,9 @@ impl Game {
 			MouseTarget::EmptyPile(_) => {} // impossible
 			MouseTarget::PileCard{pile_index, target_card:card, target_card_index, n_cards, ..} => {
 				if card.rank == Rank::Ace {
-					moves.push(Move {
+					moves.push(Move::CardMove{
 						card,
-						src: MoveSrc::FromPile{ pile_index, target_card_index },
+						src: MoveSrc::FromPile{ pile_index, n_cards, target_card_index },
 						dest: MoveDest::ToFoundation(card.suit),
 					});
 				}
@@ -367,9 +363,9 @@ impl Game {
 					for suit in Suit::all() {
 						if let Some(top) = self.foundation_top_card(*suit) {
 							if card.can_stack_onto_in_foundation(top) {
-								moves.push(Move {
+								moves.push(Move::CardMove{
 									card,
-									src: MoveSrc::FromPile{ pile_index, target_card_index },
+									src: MoveSrc::FromPile{ pile_index, n_cards, target_card_index },
 									dest: MoveDest::ToFoundation(*suit),
 								});
 								break;
@@ -385,9 +381,9 @@ impl Game {
 					// if the card can go onto the top visible card, it's a valid move
 					if let Some(top) = pile.top_card() {
 						if card.can_pile_onto(top) {
-							moves.push(Move {
+							moves.push(Move::CardMove{
 								card,
-								src: MoveSrc::FromPile{ pile_index, target_card_index },
+								src: MoveSrc::FromPile{ pile_index, n_cards, target_card_index },
 								dest: MoveDest::ToPile(i),
 							});
 						}
@@ -395,9 +391,9 @@ impl Game {
 
 					else if pile.is_empty() && card.rank == Rank::King {
 						// if the pile is empty and the card is a king, it's a valid move
-						moves.push(Move {
+						moves.push(Move::CardMove{
 							card,
-							src: MoveSrc::FromPile{ pile_index, target_card_index },
+							src: MoveSrc::FromPile{ pile_index, n_cards, target_card_index },
 							dest: MoveDest::ToPile(i),
 						});
 					}
@@ -413,57 +409,73 @@ impl Game {
 	}
 
 	pub fn exec_move(&mut self, mv:Move) -> bool {
-		match mv.src {
-			MoveSrc::FromStock => {
-				if let Some(card) = self.stock.front().cloned() {
-					self.stock.pop_front();
-					match mv.dest {
-						MoveDest::ToPile(pile_index) => {
-							self.piles[pile_index].visible.push(card);
-						}
-						MoveDest::ToFoundation(suit) => {
-							self.foundation_fill_levels.insert(suit, card.rank);
-						}
-					}
-					// if there is a previous card, put it back at the front
-					if !self.stock.is_empty() {
-						if let Some(prev) = self.stock.pop_back() {
-							self.stock.push_front(prev)
-						}
-					}
-					return true
-				}
-			}
-			MoveSrc::FromFoundation(suit) => {
-				match mv.dest {
-					MoveDest::ToPile(pile_index) => {
-						if let Some(top_card) = self.pop_foundation(suit) {
-							self.piles[pile_index].visible.push(top_card);
+		match mv {
+			Move::CardMove{ card, src, dest } => {
+				match src {
+					MoveSrc::FromStock => {
+						if let Some(card) = self.stock.front().cloned() {
+							self.stock.pop_front();
+							match dest {
+								MoveDest::ToPile(pile_index) => {
+									self.piles[pile_index].visible.push(card);
+								}
+								MoveDest::ToFoundation(suit) => {
+									self.foundation_fill_levels.insert(suit, card.rank);
+								}
+							}
+							// if there is a previous card, put it back at the front
+							if !self.stock.is_empty() {
+								if let Some(prev) = self.stock.pop_back() {
+									self.stock.push_front(prev)
+								}
+							}
+							self.move_history.push(mv);
 							return true
 						}
 					}
-					MoveDest::ToFoundation(_) => {} // impossible
-				}
-			}
-			MoveSrc::FromPile{ pile_index, target_card_index } => {
-				let pile = &mut self.piles[pile_index];
-				let removed:Vec<Card> = pile.visible.drain(target_card_index..).collect();
-				if pile.visible.is_empty() {
-					if let Some(next) = pile.hidden.pop() {
-						pile.visible.push(next);
-					}
-				}
-				match mv.dest {
-					MoveDest::ToPile(dest_pile_index) => {
-						for card in removed {
-							self.piles[dest_pile_index].visible.push(card);
+					MoveSrc::FromFoundation(suit) => {
+						match dest {
+							MoveDest::ToPile(pile_index) => {
+								if let Some(top_card) = self.pop_foundation(suit) {
+									self.piles[pile_index].visible.push(top_card);
+									self.move_history.push(mv);
+									return true
+								}
+							}
+							MoveDest::ToFoundation(_) => {} // impossible
 						}
 					}
-					MoveDest::ToFoundation(suit) => {
-						self.foundation_fill_levels.insert(suit, mv.card.rank);
+					MoveSrc::FromPile{ pile_index, target_card_index, .. } => {
+						let pile = &mut self.piles[pile_index];
+						let removed:Vec<Card> = pile.visible.drain(target_card_index..).collect();
+						if pile.visible.is_empty() {
+							if let Some(next) = pile.hidden.pop() {
+								pile.visible.push(next);
+							}
+						}
+						match dest {
+							MoveDest::ToPile(dest_pile_index) => {
+								for card in removed {
+									self.piles[dest_pile_index].visible.push(card);
+								}
+							}
+							MoveDest::ToFoundation(suit) => {
+								self.foundation_fill_levels.insert(suit, card.rank);
+							}
+						}
+						self.move_history.push(mv);
+						return true
 					}
 				}
-				return true
+			}
+			Move::CycleStock => {
+				// does nothing if the stock has 0 or 1 cards
+				if self.stock.len() > 1 {
+					let card = self.stock.pop_front().unwrap();
+					self.stock.push_back(card);
+					self.move_history.push(mv);
+					return true
+				}
 			}
 		}
 		return false
@@ -472,42 +484,49 @@ impl Game {
 	pub fn exec_move_in_progress(&mut self, target:MouseTarget) {
 		if let Some(mip) = &self.move_in_progress {
 			for mv in mip.moves.to_owned() {
-				match mv.dest {
-					MoveDest::ToPile(mip_pile_index) => {
-						match target {
-							MouseTarget::StockTop => {} // impossible
-							MouseTarget::StockDeck => {} // impossible
-							MouseTarget::Foundation(_) => {} // not relevant for this move in progress
-							MouseTarget::EmptyPile(target_pile_index) => {
-								if mip_pile_index == target_pile_index {
-									self.exec_move(mv);
-									self.move_in_progress = None;
-									return
+				match mv {
+					Move::CardMove { dest, .. } => {
+						match dest {
+							MoveDest::ToPile(mip_pile_index) => {
+								match target {
+									MouseTarget::StockTop => {} // impossible
+									MouseTarget::StockDeck => {} // impossible
+									MouseTarget::Foundation(_) => {} // not relevant for this move in progress
+									MouseTarget::EmptyPile(target_pile_index) => {
+										if mip_pile_index == target_pile_index {
+											self.exec_move(mv);
+											self.move_in_progress = None;
+											return
+										}
+									}
+									MouseTarget::PileCard{pile_index:target_pile_index, ..} => {
+										if mip_pile_index == target_pile_index {
+											self.exec_move(mv);
+											self.move_in_progress = None;
+											return
+										}
+									}
 								}
 							}
-							MouseTarget::PileCard{pile_index:target_pile_index, ..} => {
-								if mip_pile_index == target_pile_index {
-									self.exec_move(mv);
-									self.move_in_progress = None;
-									return
+							MoveDest::ToFoundation(mip_suit) => {
+								match target {
+									MouseTarget::StockTop => {} // impossible
+									MouseTarget::StockDeck => {} // impossible
+									MouseTarget::Foundation(target_suit) => {
+										if mip_suit == target_suit {
+											self.exec_move(mv);
+											self.move_in_progress = None;
+											return
+										}
+									}
+									MouseTarget::EmptyPile(_) => {} // not relevant for this move in progress
+									MouseTarget::PileCard{..} => {} // not relevant for this move in progress
 								}
 							}
 						}
 					}
-					MoveDest::ToFoundation(mip_suit) => {
-						match target {
-							MouseTarget::StockTop => {} // impossible
-							MouseTarget::StockDeck => {} // impossible
-							MouseTarget::Foundation(target_suit) => {
-								if mip_suit == target_suit {
-									self.exec_move(mv);
-									self.move_in_progress = None;
-									return
-								}
-							}
-							MouseTarget::EmptyPile(_) => {} // not relevant for this move in progress
-							MouseTarget::PileCard{..} => {} // not relevant for this move in progress
-						}
+					Move::CycleStock => {
+						self.exec_move(mv);
 					}
 				}
 			}
@@ -526,6 +545,84 @@ impl Game {
 			self.foundation_fill_levels.remove(&suit);
 		}
 		Some(top_card)
+	}
+
+	// if there are no moves to undo, does nothing
+	pub fn undo_move(&mut self) {
+		if let Some(mv) = self.move_history.pop() {
+			match mv {
+				Move::CardMove{ card:_, src, dest } => {
+					match src {
+						MoveSrc::FromStock => {
+							match dest {
+								MoveDest::ToPile(dest_pile_index) => {
+									if let Some(card) = self.piles[dest_pile_index].visible.pop() {
+										self.stock.push_front(card);
+									}
+								}
+								MoveDest::ToFoundation(suit) => {
+									if let Some(card) = self.pop_foundation(suit) {
+										self.stock.push_front(card);
+									}
+								}
+							}
+						}
+						MoveSrc::FromFoundation(suit) => {
+							match dest {
+								MoveDest::ToPile(dest_pile_index) => {
+									if let Some(card) = self.piles[dest_pile_index].visible.pop() {
+										self.foundation_fill_levels.insert(suit, card.rank);
+									}
+								}
+								MoveDest::ToFoundation(_) => {} // impossible
+							}
+						}
+						MoveSrc::FromPile{ pile_index, n_cards, target_card_index, .. } => {
+							match dest {
+								MoveDest::ToPile(dest_pile_index) => {
+									let dest_pile = &mut self.piles[dest_pile_index];
+									let index = dest_pile.visible.len() - n_cards as usize;
+									let removed:Vec<Card> = dest_pile.visible.drain(index..).collect();
+
+									let src_pile = &mut self.piles[pile_index];
+
+									// check if need to re-hide the prev hidden card
+									if target_card_index == 0 && src_pile.visible.len() == 1 {
+										if let Some(card_to_rehide) = src_pile.visible.pop() {
+											src_pile.hidden.push(card_to_rehide);
+										}
+									}
+
+									for card in removed {
+										src_pile.visible.push(card);
+									}
+								}
+								MoveDest::ToFoundation(suit) => {
+									if let Some(card) = self.pop_foundation(suit) {
+										let src_pile = &mut self.piles[pile_index];
+
+										// check if need to re-hide the prev hidden card
+										if target_card_index == 0 && src_pile.visible.len() == 1 {
+											if let Some(card_to_rehide) = src_pile.visible.pop() {
+												src_pile.hidden.push(card_to_rehide);
+											}
+										}
+
+										src_pile.visible.push(card);
+									}
+								}
+							}
+						}
+					}
+				}
+				Move::CycleStock => {
+					if self.stock.len() > 1 {
+						let card = self.stock.pop_back().unwrap();
+						self.stock.push_front(card);
+					}
+				}
+			}
+		}
 	}
 
 	pub fn auto_move(&mut self) {
@@ -585,24 +682,30 @@ struct MoveInProgress {
 	moves: Vec<Move>,
 }
 
-#[derive(Clone, Debug)]
-struct Move {
-	card: Card,
-	src: MoveSrc,
-	dest: MoveDest,
+#[derive(Copy, Clone, Debug)]
+enum Move {
+	CardMove{
+		card: Card,
+		src: MoveSrc,
+		dest: MoveDest,
+	},
+	CycleStock,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 enum MoveSrc {
 	FromStock,
 	FromFoundation(Suit),
 	FromPile{
 		pile_index:usize, // 0 is the leftmost pile
-		target_card_index:usize, // the index into visible of the targeted card
+		n_cards:u8, // 1 = only the top card, 2 = two top cards, etc
+		target_card_index:usize, // the index into visible of the targeted card. Note: if this is
+								 // 0 and the hidden size > 0, that means the move uncovers a
+								 // hidden card
 	},
 }
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 enum MoveDest {
 	ToPile(usize),
 	ToFoundation(Suit),

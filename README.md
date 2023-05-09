@@ -26,12 +26,12 @@ Familiarity with the rules of [Solitaire](https://en.wikipedia.org/wiki/Klondike
 | ---      | ---                                                 |
 | Spacebar | Cycles the stock by one card                        |
 | R        | Generates a new game                                |
+| U        | Undo previous move                                  |
 | D        | Prints a debug log of the game state in the console |
 | A        | Auto-move (note: it's pretty dumb)                  |
 
 # TODO / wishlist
 
-- [ ] Undo
 - [ ] Animations
 - [ ] Move hints
 - [ ] A game over message / win-screen
