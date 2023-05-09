@@ -18,7 +18,7 @@ async fn main() {
 	let mut game = Game::new();
 
 	loop {
-		clear_background(GREEN);
+		clear_background(BG_COLOUR);
 
 		if is_key_down(KeyCode::Escape) {
 			return;
@@ -74,6 +74,7 @@ async fn main() {
 	}
 }
 
+const BG_COLOUR: Color = Color::new(0.25, 0.7, 0.3, 1.);
 const SCREEN_H: f32 = 500.;
 const SCREEN_W: f32 = SCREEN_H*1.2;
 const N_PILES: u8 = 7; // number of piles
