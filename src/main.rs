@@ -283,7 +283,7 @@ impl Game {
 				}
 			}
 
-			if pile.is_empty() {
+			if pile.is_empty() && Card::mouse_hit(x, PILES_Y, mx, my) {
 				return Some(MouseTarget::EmptyPile(pile_index))
 			}
 		}
