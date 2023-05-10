@@ -1,5 +1,6 @@
 use macroquad::prelude::*;
 use std::collections::{HashMap, VecDeque};
+use std::cmp::Ordering;
 
 #[macroquad::main("Solitaire")]
 async fn main() {
@@ -371,16 +372,19 @@ impl Game {
 			}
 			MouseTarget::EmptyPile(_) => {} // impossible
 			MouseTarget::PileCard{pile_index, target_card:card, target_card_index, n_cards, ..} => {
+				let reveals_hidden_card = target_card_index == 0 && !self.piles[pile_index].hidden.is_empty();
 				if card.rank == Rank::Ace {
+					let dest = MoveDest::ToFoundation(card.suit);
 					moves.push(Move::CardMove{
 						card,
 						src: MoveSrc::FromPile{
 							pile_index,
 							n_cards,
-							reveals_hidden_card: target_card_index == 0 && self.piles[pile_index].visible.len() == 1,
+							progress_value: self.calc_progress_value_for_pile_card_move(pile_index, target_card_index, reveals_hidden_card, dest),
+							reveals_hidden_card,
 							target_card_index,
 						},
-						dest: MoveDest::ToFoundation(card.suit),
+						dest,
 					});
 				}
 
@@ -388,16 +392,18 @@ impl Game {
 				if n_cards == 1 {
 					for suit in Suit::all() {
 						if let Some(top) = self.foundation_top_card(*suit) {
+							let dest = MoveDest::ToFoundation(*suit);
 							if card.can_stack_onto_in_foundation(top) {
 								moves.push(Move::CardMove{
 									card,
 									src: MoveSrc::FromPile{
 										pile_index,
 										n_cards,
+										progress_value: self.calc_progress_value_for_pile_card_move(pile_index, target_card_index, reveals_hidden_card, dest),
+										reveals_hidden_card,
 										target_card_index,
-										reveals_hidden_card: target_card_index == 0 && self.piles[pile_index].visible.len() == 1,
 									},
-									dest: MoveDest::ToFoundation(*suit),
+									dest,
 								});
 								break;
 							}
@@ -411,31 +417,35 @@ impl Game {
 
 					// if the card can go onto the top visible card, it's a valid move
 					if let Some(top) = pile.top_card() {
+						let dest = MoveDest::ToPile(i);
 						if card.can_pile_onto(top) {
 							moves.push(Move::CardMove{
 								card,
 								src: MoveSrc::FromPile{
 									pile_index,
 									n_cards,
+									progress_value: self.calc_progress_value_for_pile_card_move(pile_index, target_card_index, reveals_hidden_card, dest),
+									reveals_hidden_card,
 									target_card_index,
-									reveals_hidden_card: target_card_index == 0 && pile.visible.len() == 1,
 								},
-								dest: MoveDest::ToPile(i),
+								dest,
 							});
 						}
 					}
 
 					else if pile.is_empty() && card.rank == Rank::King {
 						// if the pile is empty and the card is a king, it's a valid move
+						let dest = MoveDest::ToPile(i);
 						moves.push(Move::CardMove{
 							card,
 							src: MoveSrc::FromPile{
 								pile_index,
 								n_cards,
+								progress_value: self.calc_progress_value_for_pile_card_move(pile_index, target_card_index, reveals_hidden_card, dest),
+								reveals_hidden_card,
 								target_card_index,
-								reveals_hidden_card: target_card_index == 0 && pile.visible.len() == 1,
 							},
-							dest: MoveDest::ToPile(i),
+							dest,
 						});
 					}
 				}
@@ -447,6 +457,28 @@ impl Game {
 		} else {
 			Some(moves)
 		}
+	}
+
+	fn calc_progress_value_for_pile_card_move(&self, pile_index:usize, target_card_index:usize, reveals_hidden_card:bool, dest:MoveDest) -> usize {
+		if target_card_index == 0 {
+			if reveals_hidden_card { return 2 }
+
+			else if self.piles[pile_index].len() == 1 {
+				return match dest {
+					MoveDest::ToFoundation(_) => 1,
+					MoveDest::ToPile(dest_pile_index) => {
+						// if it's from a single-card pile to non-empty pile, that's progress.
+						if self.piles[dest_pile_index].len() > 0 {
+							1
+						} else { // otherwise it's just shifting between two empty piles.
+							0
+						}
+					}
+				}
+			}
+		}
+		
+		return 0
 	}
 
 	pub fn exec_move(&mut self, mv:Move) -> bool {
@@ -667,15 +699,14 @@ impl Game {
 	}
 
 	pub fn auto_move(&mut self) {
-		if let Some(moves) = self.calc_moves(MouseTarget::StockTop) {
-			let mv = moves.as_slice().first().unwrap().to_owned();
-			self.exec_move(mv);
-			return;
-		}
+		let mut moves = vec![Move::CycleStock];
 
+		// generate all possible moves
+		if let Some(mut stock_moves) = self.calc_moves(MouseTarget::StockTop) {
+			moves.append(&mut stock_moves);
+		}
 		for (pile_index, pile) in self.piles[..].into_iter().enumerate() {
-			// check visible cards in reverse order
-			for (card_index, card) in pile.visible[..].into_iter().enumerate().rev() {
+			for (card_index, card) in pile.visible[..].into_iter().enumerate() {
 				let target = MouseTarget::PileCard{
 					pile_index,
 					n_cards: (pile.visible.len() - card_index) as u8,
@@ -683,12 +714,44 @@ impl Game {
 					target_card_index: card_index,
 					top: 0., // doesn't matter for this purpose
 				};
-				if let Some(moves) = self.calc_moves(target) {
-					let mv = moves.as_slice().first().unwrap().to_owned();
-					self.exec_move(mv);
-					return;
+				if let Some(mut pile_moves) = self.calc_moves(target) {
+					moves.append(&mut pile_moves);
 				}
 			}
+		}
+
+		// sort moves by quality
+		moves.sort_by(|a, b| {
+			match (a, b) {
+				// if both moves make progress, just pick one
+				(Move::CardMove{ src: MoveSrc::FromPile{ progress_value: pa, .. }, ..},
+				 Move::CardMove{ src: MoveSrc::FromPile{ progress_value: pb, .. }, ..}) if *pa > 0 || *pb > 0 => pb.cmp(&pa),
+
+				// if exactly one move makes progress, pick that one
+				(Move::CardMove{ src: MoveSrc::FromPile{ progress_value: p, .. }, ..}, _) if *p > 0 => Ordering::Less,
+				(_, Move::CardMove{ src: MoveSrc::FromPile{ progress_value: p, .. }, ..}) if *p > 0 => Ordering::Greater,
+
+				// if neither move makes progress, prefer moves to the foundation
+				(Move::CardMove{ dest: MoveDest::ToFoundation(_), .. }, _) => Ordering::Less,
+				(_, Move::CardMove{ dest: MoveDest::ToFoundation(_), .. }) => Ordering::Greater,
+
+				// if there are no moves to the foundation, prefer moves from stock to piles
+				(Move::CardMove{ src: MoveSrc::FromStock, dest: MoveDest::ToPile(..), ..}, _) => Ordering::Less,
+				(_, Move::CardMove{ src: MoveSrc::FromStock, dest: MoveDest::ToPile(..), ..}) => Ordering::Greater,
+
+				// just cycle the stock
+				(Move::CycleStock, _) => Ordering::Less,
+				(_, Move::CycleStock) => Ordering::Greater,
+
+				_ => Ordering::Equal,
+			}
+		});
+
+		println!("moves: {:?}", moves);
+
+		// execute the first move in the list (ie. the highest quality move)
+		if let Some(mv) = moves.as_slice().first() {
+			self.exec_move(*mv);
 		}
 	}
 
@@ -740,6 +803,7 @@ enum MoveSrc {
 	FromPile{
 		pile_index:usize, // 0 is the leftmost pile
 		n_cards:u8, // 1 = only the top card, 2 = two top cards, etc
+		progress_value:usize, // a heuristic of how much progress this move represents
 		reveals_hidden_card:bool,
 		target_card_index:usize, // the index into visible of the targeted card. Note: if this is
 								 // 0 and the hidden size > 0, that means the move uncovers a
@@ -765,6 +829,10 @@ impl Pile {
 			hidden: Vec::new(),
 			visible: Vec::new(),
 		};
+	}
+
+	pub fn len(&self) -> usize {
+		self.hidden.len() + self.visible.len()
 	}
 
 	// x-coord of left edge of the pile
