@@ -374,7 +374,12 @@ impl Game {
 				if card.rank == Rank::Ace {
 					moves.push(Move::CardMove{
 						card,
-						src: MoveSrc::FromPile{ pile_index, n_cards, target_card_index },
+						src: MoveSrc::FromPile{
+							pile_index,
+							n_cards,
+							reveals_hidden_card: target_card_index == 0 && self.piles[pile_index].visible.len() == 1,
+							target_card_index,
+						},
 						dest: MoveDest::ToFoundation(card.suit),
 					});
 				}
@@ -386,7 +391,12 @@ impl Game {
 							if card.can_stack_onto_in_foundation(top) {
 								moves.push(Move::CardMove{
 									card,
-									src: MoveSrc::FromPile{ pile_index, n_cards, target_card_index },
+									src: MoveSrc::FromPile{
+										pile_index,
+										n_cards,
+										target_card_index,
+										reveals_hidden_card: target_card_index == 0 && self.piles[pile_index].visible.len() == 1,
+									},
 									dest: MoveDest::ToFoundation(*suit),
 								});
 								break;
@@ -404,7 +414,12 @@ impl Game {
 						if card.can_pile_onto(top) {
 							moves.push(Move::CardMove{
 								card,
-								src: MoveSrc::FromPile{ pile_index, n_cards, target_card_index },
+								src: MoveSrc::FromPile{
+									pile_index,
+									n_cards,
+									target_card_index,
+									reveals_hidden_card: target_card_index == 0 && pile.visible.len() == 1,
+								},
 								dest: MoveDest::ToPile(i),
 							});
 						}
@@ -414,7 +429,12 @@ impl Game {
 						// if the pile is empty and the card is a king, it's a valid move
 						moves.push(Move::CardMove{
 							card,
-							src: MoveSrc::FromPile{ pile_index, n_cards, target_card_index },
+							src: MoveSrc::FromPile{
+								pile_index,
+								n_cards,
+								target_card_index,
+								reveals_hidden_card: target_card_index == 0 && pile.visible.len() == 1,
+							},
 							dest: MoveDest::ToPile(i),
 						});
 					}
@@ -598,7 +618,7 @@ impl Game {
 								MoveDest::ToFoundation(_) => {} // impossible
 							}
 						}
-						MoveSrc::FromPile{ pile_index, n_cards, target_card_index, .. } => {
+						MoveSrc::FromPile{ pile_index, n_cards, reveals_hidden_card, .. } => {
 							match dest {
 								MoveDest::ToPile(dest_pile_index) => {
 									let dest_pile = &mut self.piles[dest_pile_index];
@@ -608,7 +628,7 @@ impl Game {
 									let src_pile = &mut self.piles[pile_index];
 
 									// check if need to re-hide the prev hidden card
-									if target_card_index == 0 && src_pile.visible.len() == 1 {
+									if reveals_hidden_card {
 										if let Some(card_to_rehide) = src_pile.visible.pop() {
 											src_pile.hidden.push(card_to_rehide);
 										}
@@ -623,7 +643,7 @@ impl Game {
 										let src_pile = &mut self.piles[pile_index];
 
 										// check if need to re-hide the prev hidden card
-										if target_card_index == 0 && src_pile.visible.len() == 1 {
+										if reveals_hidden_card {
 											if let Some(card_to_rehide) = src_pile.visible.pop() {
 												src_pile.hidden.push(card_to_rehide);
 											}
@@ -720,6 +740,7 @@ enum MoveSrc {
 	FromPile{
 		pile_index:usize, // 0 is the leftmost pile
 		n_cards:u8, // 1 = only the top card, 2 = two top cards, etc
+		reveals_hidden_card:bool,
 		target_card_index:usize, // the index into visible of the targeted card. Note: if this is
 								 // 0 and the hidden size > 0, that means the move uncovers a
 								 // hidden card
